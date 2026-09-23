@@ -5,7 +5,7 @@ import { symbolFor, type EventDefinition } from "./events/types.js";
 import { TicketRegistry } from "./tickets/registry.js";
 import type { Ticket } from "./tickets/types.js";
 import type { Command } from "./commands.js";
-import type { Order, Trade } from "./types.js";
+import type { Order, Side, Trade } from "./types.js";
 
 const STARTING_CASH = 100_000_00;
 
@@ -30,6 +30,7 @@ export class ExchangeState {
   private orders = new Map<string, Order>();
   private trades: Trade[] = [];
   private orderCounter = 0;
+  private eventCounter = 0;
   private recoveredCount = 0;
   private requeuedCount = 0;
 
@@ -76,6 +77,11 @@ export class ExchangeState {
   nextOrderId(): string {
     this.orderCounter += 1;
     return `ord_${this.orderCounter}`;
+  }
+
+  nextEventId(): string {
+    this.eventCounter += 1;
+    return `evt_${this.eventCounter}`;
   }
 
   createEvent(event: EventDefinition): EventDefinition {
@@ -190,6 +196,20 @@ export class ExchangeState {
 
   ordersFor(userId: string): Order[] {
     return [...this.orders.values()].filter((order) => order.userId === userId);
+  }
+
+  restingQuantity(symbol: string, side: Side): number {
+    let total = 0;
+    for (const order of this.orders.values()) {
+      if (
+        order.symbol === symbol &&
+        order.side === side &&
+        (order.status === "open" || order.status === "partially_filled")
+      ) {
+        total += order.remainingQuantity;
+      }
+    }
+    return total;
   }
 
   restingOrders(symbol: string): Order[] {
@@ -326,6 +346,7 @@ export class ExchangeState {
 
   private recover(entries: LogEntry[]): void {
     let highestCounter = 0;
+    let highestEvent = 0;
 
     for (const entry of entries) {
       const command: Command = entry.command;
@@ -334,6 +355,10 @@ export class ExchangeState {
       if (command.kind === "createEvent") {
         this.events.create(command.event);
         this.ensureAccount(command.event.organizerId);
+        const eventMatch = /^evt_(\d+)$/.exec(command.event.id);
+        if (eventMatch) {
+          highestEvent = Math.max(highestEvent, Number(eventMatch[1]));
+        }
         continue;
       }
 
@@ -385,6 +410,7 @@ export class ExchangeState {
     }
 
     this.orderCounter = highestCounter;
+    this.eventCounter = highestEvent;
     this.recoveredCount = entries.length;
   }
 }

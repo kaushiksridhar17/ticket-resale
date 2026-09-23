@@ -182,4 +182,68 @@ describe("AuthService", () => {
     expect(await store.getSession(token)).toBeNull();
     expect(await auth.resolveToken(token)).not.toBeNull();
   });
+
+  describe("roles", () => {
+    function serviceFor(organizerEmails: string[]): AuthService {
+      return new AuthService(store, {
+        pepper: "test-pepper",
+        organizerEmails,
+        now: () => clock,
+        sendCode: (email, code) => {
+          sent.push({ email, code });
+        },
+      });
+    }
+
+    async function signIn(service: AuthService, email: string) {
+      await service.requestCode(email);
+      return service.verifyCode(email, lastCode());
+    }
+
+    it("signs everyone up as an attendee by default", async () => {
+      const { user } = await signIn(auth, "fan@example.com");
+
+      expect(user.role).toBe("attendee");
+    });
+
+    it("signs up a listed address as an organizer", async () => {
+      const service = serviceFor(["Promoter@Example.com"]);
+      const { user } = await signIn(service, "promoter@example.com");
+
+      expect(user.role).toBe("organizer");
+    });
+
+    it("promotes an existing attendee once they are listed", async () => {
+      const before = await signIn(auth, "promoter@example.com");
+      expect(before.user.role).toBe("attendee");
+
+      clock += 60_000;
+      const after = await signIn(
+        serviceFor(["promoter@example.com"]),
+        "promoter@example.com"
+      );
+
+      expect(after.user.role).toBe("organizer");
+      expect(after.user.id).toBe(before.user.id);
+    });
+
+    it("demotes an organizer once they are taken off the list", async () => {
+      await signIn(serviceFor(["promoter@example.com"]), "promoter@example.com");
+
+      clock += 60_000;
+      const { user } = await signIn(auth, "promoter@example.com");
+
+      expect(user.role).toBe("attendee");
+    });
+
+    it("leaves door staff alone whoever is on the list", async () => {
+      const { user } = await signIn(auth, "door@example.com");
+      await store.setRole(user.id, "staff");
+
+      clock += 60_000;
+      const again = await signIn(serviceFor(["someone@example.com"]), "door@example.com");
+
+      expect(again.user.role).toBe("staff");
+    });
+  });
 });

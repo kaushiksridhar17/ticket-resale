@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import { registerRoutes } from "./api/routes.js";
 import { registerHistoryRoutes } from "./api/history.js";
+import { registerEventRoutes } from "./api/events.js";
 import { registerWebSocket } from "./ws/routes.js";
 import { Broadcaster } from "./ws/broadcaster.js";
 import { ExchangeState } from "./exchangeState.js";
@@ -24,6 +25,17 @@ export interface ServerOptions {
   databaseUrl?: string | null;
   authPepper?: string;
   sendCode?: SendCode;
+  organizerEmails?: string[];
+}
+
+function parseOrganizers(raw: string | undefined): string[] {
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }
 
 export async function buildServer(options: ServerOptions = {}) {
@@ -57,6 +69,7 @@ export async function buildServer(options: ServerOptions = {}) {
   const auth = new AuthService(authStore, {
     pepper: options.authPepper ?? process.env.AUTH_PEPPER ?? "development-pepper",
     sendCode: options.sendCode ?? consoleMailer(),
+    organizerEmails: options.organizerEmails ?? parseOrganizers(process.env.ORGANIZER_EMAILS),
   });
 
   const broadcaster = new Broadcaster(state, options.broadcastIntervalMs ?? 100);
@@ -89,6 +102,7 @@ export async function buildServer(options: ServerOptions = {}) {
 
   registerAuthRoutes(app, auth);
   registerRoutes(app, { state, onOrderChange: onChange, onTrades });
+  registerEventRoutes(app, { state });
   registerHistoryRoutes(app, { state, database });
   registerWebSocket(app, broadcaster);
 

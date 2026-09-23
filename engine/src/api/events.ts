@@ -1,0 +1,219 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { OrderRejected } from "../exchange.js";
+import { requireRole, requireUser } from "../auth/plugin.js";
+import {
+  createEventSchema,
+  issueTicketsSchema,
+  type CreateEventBody,
+  type IssueTicketsBody,
+} from "./schemas.js";
+import { symbolFor, type EventDefinition } from "../events/types.js";
+import type { ExchangeState } from "../exchangeState.js";
+
+export interface EventRouteDeps {
+  state: ExchangeState;
+  now?: () => number;
+}
+
+export function registerEventRoutes(
+  app: FastifyInstance,
+  deps: EventRouteDeps
+): void {
+  const { state } = deps;
+  const now = deps.now ?? (() => Date.now());
+
+  app.get("/events", async () => ({
+    events: state.events.list().map((event) => eventView(state, event)),
+  }));
+
+  app.get("/events/:eventId", async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const event = state.events.get(eventId);
+    if (!event) {
+      return reply.code(404).send({ error: `Unknown event ${eventId}` });
+    }
+    return { event: eventView(state, event) };
+  });
+
+  app.get("/tickets", async (request) => {
+    const user = requireUser(request);
+
+    const tickets = state.ticketsHeldBy(user.id).map((ticket) => {
+      const ref = state.events.resolve(ticket.symbol);
+      return {
+        id: ticket.id,
+        symbol: ticket.symbol,
+        serial: ticket.serial,
+        rotation: ticket.rotation,
+        eventId: ref?.event.id ?? null,
+        eventName: ref?.event.name ?? null,
+        eventStatus: ref?.event.status ?? null,
+        venue: ref?.event.venue ?? null,
+        startsAt: ref?.event.startsAt ?? null,
+        tierId: ref?.tier.tierId ?? null,
+        tierName: ref?.tier.name ?? null,
+        faceValueInCents: ref?.tier.faceValueInCents ?? null,
+      };
+    });
+
+    return { tickets };
+  });
+
+  app.post("/events", { schema: createEventSchema }, async (request, reply) => {
+    const user = requireRole(request, "organizer");
+    const body = request.body as CreateEventBody;
+
+    const problem = validateEvent(body, now());
+    if (problem) {
+      return reply.code(400).send({ error: problem });
+    }
+
+    const event: EventDefinition = {
+      id: state.nextEventId(),
+      organizerId: user.id,
+      name: body.name.trim(),
+      venue: body.venue.trim(),
+      startsAt: body.startsAt,
+      salesCloseAt: body.salesCloseAt,
+      paymentMode: body.paymentMode ?? "offline",
+      status: "on_sale",
+      tiers: body.tiers.map((tier) => ({
+        tierId: tier.tierId,
+        name: tier.name.trim(),
+        faceValueInCents: tier.faceValueInCents,
+        perPersonLimit: tier.perPersonLimit,
+      })),
+    };
+
+    state.createEvent(event);
+
+    return reply.code(201).send({ event: eventView(state, event) });
+  });
+
+  app.post(
+    "/events/:eventId/tickets",
+    { schema: issueTicketsSchema },
+    async (request, reply) => {
+      const { eventId } = request.params as { eventId: string };
+      const body = request.body as IssueTicketsBody;
+
+      const event = ownedEvent(request, reply, state, eventId);
+      if (!event) {
+        return reply;
+      }
+      if (!event.tiers.some((tier) => tier.tierId === body.tierId)) {
+        return reply.code(404).send({ error: `Unknown tier ${body.tierId}` });
+      }
+      if (event.status !== "on_sale") {
+        return reply
+          .code(409)
+          .send({ error: "Tickets can only be issued while an event is on sale" });
+      }
+
+      try {
+        const issued = state.issueTickets(eventId, body.tierId, body.count);
+        return reply.code(201).send({
+          symbol: symbolFor(eventId, body.tierId),
+          issued,
+          event: eventView(state, event),
+        });
+      } catch (error) {
+        if (error instanceof OrderRejected) {
+          return reply.code(422).send({ error: error.message });
+        }
+        throw error;
+      }
+    }
+  );
+
+  app.post("/events/:eventId/close", async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const event = ownedEvent(request, reply, state, eventId);
+    if (!event) {
+      return reply;
+    }
+    if (event.status === "cancelled") {
+      return reply.code(409).send({ error: "That event is already cancelled" });
+    }
+
+    state.closeSales(eventId);
+    return { event: eventView(state, event) };
+  });
+
+  app.post("/events/:eventId/cancel", async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const event = ownedEvent(request, reply, state, eventId);
+    if (!event) {
+      return reply;
+    }
+
+    state.cancelEvent(eventId);
+    return { event: eventView(state, event) };
+  });
+}
+
+function ownedEvent(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  state: ExchangeState,
+  eventId: string
+): EventDefinition | null {
+  const user = requireRole(request, "organizer");
+  const event = state.events.get(eventId);
+
+  if (!event) {
+    reply.code(404).send({ error: `Unknown event ${eventId}` });
+    return null;
+  }
+  if (event.organizerId !== user.id) {
+    reply.code(403).send({ error: "That event is not yours" });
+    return null;
+  }
+
+  return event;
+}
+
+function validateEvent(body: CreateEventBody, currentTime: number): string | null {
+  if (body.salesCloseAt <= currentTime) {
+    return "Sales must close in the future";
+  }
+  if (body.startsAt < body.salesCloseAt) {
+    return "Sales cannot close after the event has started";
+  }
+
+  const ids = new Set<string>();
+  for (const tier of body.tiers) {
+    if (ids.has(tier.tierId)) {
+      return `Duplicate tier ${tier.tierId}`;
+    }
+    ids.add(tier.tierId);
+  }
+
+  return null;
+}
+
+function eventView(state: ExchangeState, event: EventDefinition) {
+  return {
+    id: event.id,
+    organizerId: event.organizerId,
+    name: event.name,
+    venue: event.venue,
+    startsAt: event.startsAt,
+    salesCloseAt: event.salesCloseAt,
+    paymentMode: event.paymentMode,
+    status: event.status,
+    tiers: event.tiers.map((tier) => {
+      const symbol = symbolFor(event.id, tier.tierId);
+      return {
+        tierId: tier.tierId,
+        name: tier.name,
+        faceValueInCents: tier.faceValueInCents,
+        perPersonLimit: tier.perPersonLimit,
+        symbol,
+        issued: state.events.issuedCount(symbol),
+        forSale: state.restingQuantity(symbol, "sell"),
+        waiting: state.restingQuantity(symbol, "buy"),
+      };
+    }),
+  };
+}

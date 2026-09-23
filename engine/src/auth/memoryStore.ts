@@ -1,4 +1,4 @@
-import type { AuthStore, PendingCode, SessionRecord, User } from "./types.js";
+import type { AuthStore, PendingCode, Role, SessionRecord, User } from "./types.js";
 
 export class MemoryAuthStore implements AuthStore {
   private users = new Map<string, User>();
@@ -18,6 +18,13 @@ export class MemoryAuthStore implements AuthStore {
   async createUser(user: User): Promise<void> {
     this.users.set(user.id, user);
     this.usersByEmail.set(user.email, user.id);
+  }
+
+  async setRole(userId: string, role: Role): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      user.role = role;
+    }
   }
 
   async savePendingCode(pending: PendingCode): Promise<void> {

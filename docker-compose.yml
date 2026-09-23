@@ -2,15 +2,15 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: tickets
-      POSTGRES_PASSWORD: tickets
-      POSTGRES_DB: tickets
+      POSTGRES_USER: exchange
+      POSTGRES_PASSWORD: exchange
+      POSTGRES_DB: exchange
     ports:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tickets -d tickets"]
+      test: ["CMD-SHELL", "pg_isready -U exchange -d exchange"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -22,7 +22,9 @@ services:
       - "3001:3001"
     environment:
       LOGGER: "true"
-      DATABASE_URL: postgres://tickets:tickets@db:5432/tickets
+      DATABASE_URL: postgres://exchange:exchange@db:5432/exchange
+      AUTH_PEPPER: ${AUTH_PEPPER:-development-pepper}
+      ORGANIZER_EMAILS: ${ORGANIZER_EMAILS:-}
     volumes:
       - engine-data:/app/data
     depends_on:

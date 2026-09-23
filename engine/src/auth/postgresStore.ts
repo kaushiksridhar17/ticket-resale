@@ -51,6 +51,13 @@ export class PostgresAuthStore implements AuthStore {
     );
   }
 
+  async setRole(userId: string, role: Role): Promise<void> {
+    await this.db.query("UPDATE users SET role = $2 WHERE id = $1", [
+      userId,
+      role,
+    ]);
+  }
+
   async savePendingCode(pending: PendingCode): Promise<void> {
     await this.db.query(
       `INSERT INTO login_codes (email, code_hash, expires_at, requested_at, attempts)

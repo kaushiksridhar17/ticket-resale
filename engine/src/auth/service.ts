@@ -19,6 +19,7 @@ export class AuthError extends Error {
 export interface AuthOptions {
   pepper: string;
   sendCode: (email: string, code: string) => Promise<void> | void;
+  organizerEmails?: string[];
   now?: () => number;
   codeTtlMs?: number;
   sessionTtlMs?: number;
@@ -33,6 +34,7 @@ export function normalizeEmail(raw: string): string {
 }
 
 export class AuthService {
+  private readonly organizers: Set<string>;
   private readonly now: () => number;
   private readonly codeTtlMs: number;
   private readonly sessionTtlMs: number;
@@ -43,6 +45,9 @@ export class AuthService {
     private readonly store: AuthStore,
     private readonly options: AuthOptions
   ) {
+    this.organizers = new Set(
+      (options.organizerEmails ?? []).map((email) => normalizeEmail(email))
+    );
     this.now = options.now ?? (() => Date.now());
     this.codeTtlMs = options.codeTtlMs ?? 10 * 60 * 1000;
     this.sessionTtlMs = options.sessionTtlMs ?? 30 * 24 * 60 * 60 * 1000;
@@ -101,8 +106,10 @@ export class AuthService {
 
     await this.store.deletePendingCode(email);
 
-    const user =
-      (await this.store.findUserByEmail(email)) ?? (await this.register(email, now));
+    const existingUser = await this.store.findUserByEmail(email);
+    const user = existingUser
+      ? await this.syncRole(existingUser)
+      : await this.register(email, now);
     const token = randomBytes(32).toString("base64url");
     const session: SessionRecord = {
       tokenHash: this.hash(token),
@@ -139,8 +146,21 @@ export class AuthService {
     return Math.floor(this.sessionTtlMs / 1000);
   }
 
+  private async syncRole(user: User): Promise<User> {
+    const expected = this.roleFor(user.email);
+    if (user.role === "staff" || user.role === expected) {
+      return user;
+    }
+    await this.store.setRole(user.id, expected);
+    return { ...user, role: expected };
+  }
+
+  private roleFor(email: string): Role {
+    return this.organizers.has(email) ? "organizer" : "attendee";
+  }
+
   private async register(email: string, now: number): Promise<User> {
-    const role: Role = "attendee";
+    const role: Role = this.roleFor(email);
     const user: User = {
       id: `usr_${randomBytes(9).toString("base64url")}`,
       email,

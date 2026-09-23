@@ -26,6 +26,7 @@ export interface AuthStore {
   findUserByEmail(email: string): Promise<User | null>;
   getUser(userId: string): Promise<User | null>;
   createUser(user: User): Promise<void>;
+  setRole(userId: string, role: Role): Promise<void>;
   savePendingCode(pending: PendingCode): Promise<void>;
   getPendingCode(email: string): Promise<PendingCode | null>;
   deletePendingCode(email: string): Promise<void>;
