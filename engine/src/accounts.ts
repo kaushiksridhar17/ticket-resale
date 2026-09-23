@@ -46,6 +46,10 @@ export class Accounts {
     return this.accounts.has(userId);
   }
 
+  userIds(): string[] {
+    return [...this.accounts.keys()];
+  }
+
   credit(userId: string, symbol: string, quantity: number): void {
     const position = this.position(this.get(userId), symbol);
     position.total += quantity;

@@ -2,6 +2,8 @@ import { Exchange, OrderRejected, type SubmitResult } from "./exchange.js";
 import { FileEventLog, type LogEntry } from "./eventLog.js";
 import { EventRegistry } from "./events/registry.js";
 import { symbolFor, type EventDefinition } from "./events/types.js";
+import { TicketRegistry } from "./tickets/registry.js";
+import type { Ticket } from "./tickets/types.js";
 import type { Command } from "./commands.js";
 import type { Order, Trade } from "./types.js";
 
@@ -20,6 +22,7 @@ export interface ExchangeStateOptions {
 export class ExchangeState {
   readonly exchange: Exchange;
   readonly events = new EventRegistry();
+  readonly tickets = new TicketRegistry();
   private readonly log: FileEventLog | null;
   private readonly persistence: PersistenceTarget | null;
   private readonly lastPersistedLogSeq: number;
@@ -100,6 +103,7 @@ export class ExchangeState {
     const holder = toUserId ?? ref.event.organizerId;
     this.ensureAccount(holder);
     this.exchange.accounts.credit(holder, symbol, count);
+    this.tickets.issue(symbol, count, holder);
     this.events.recordIssued(symbol, count);
     this.log?.append({
       kind: "issueTickets",
@@ -203,6 +207,39 @@ export class ExchangeState {
       .reverse();
   }
 
+  ticketsHeldBy(userId: string, symbol?: string): Ticket[] {
+    return this.tickets.heldBy(userId, symbol);
+  }
+
+  getTicket(ticketId: string): Ticket | null {
+    return this.tickets.get(ticketId);
+  }
+
+  assertInvariants(): void {
+    this.exchange.accounts.assertInvariants();
+    this.tickets.assertInvariants();
+
+    for (const symbol of this.events.symbols()) {
+      const issued = this.events.issuedCount(symbol);
+      if (this.exchange.accounts.totalShares(symbol) !== issued) {
+        throw new Error(`Ticket count for ${symbol} does not match issuance`);
+      }
+      if (this.tickets.issuedCount(symbol) !== issued) {
+        throw new Error(`Ticket registry for ${symbol} does not match issuance`);
+      }
+
+      for (const userId of this.exchange.accounts.userIds()) {
+        const held = this.heldTickets(userId, symbol);
+        const serials = this.tickets.countHeldBy(userId, symbol);
+        if (held !== serials) {
+          throw new Error(
+            `${userId} holds ${held} of ${symbol} but ${serials} serials`
+          );
+        }
+      }
+    }
+  }
+
   close(): void {
     this.log?.close();
   }
@@ -256,6 +293,14 @@ export class ExchangeState {
 
   private apply(order: Order): SubmitResult {
     const result = this.exchange.submit(order);
+    for (const trade of result.trades) {
+      this.tickets.transfer(
+        trade.symbol,
+        trade.sellUserId,
+        trade.buyUserId,
+        trade.quantity
+      );
+    }
     this.recordOrder(result.order);
     this.recordTrades(result.trades);
     return result;
@@ -296,6 +341,7 @@ export class ExchangeState {
         const symbol = symbolFor(command.eventId, command.tierId);
         this.ensureAccount(command.toUserId);
         this.exchange.accounts.credit(command.toUserId, symbol, command.count);
+        this.tickets.issue(symbol, command.count, command.toUserId);
         this.events.recordIssued(symbol, command.count);
         continue;
       }
