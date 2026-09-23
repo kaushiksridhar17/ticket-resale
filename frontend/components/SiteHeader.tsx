@@ -19,22 +19,22 @@ export function SiteHeader({ user, loading, onSignOut }: Props) {
   const pathname = usePathname();
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="text-sm font-semibold tracking-tight">
-            Face Value
+    <header className="border-b border-rule">
+      <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-5">
+        <div className="flex items-baseline gap-10">
+          <Link href="/" className="font-display text-2xl leading-none">
+            Face <span className="italic text-accent">Value</span>
           </Link>
-          <nav className="flex gap-5 text-sm">
+          <nav className="flex gap-6">
             {LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={
+                className={`eyebrow border-b-2 pb-0.5 transition ${
                   pathname === link.href
-                    ? "text-slate-100"
-                    : "text-slate-500 hover:text-slate-300"
-                }
+                    ? "border-accent text-ink"
+                    : "border-transparent text-muted hover:text-ink"
+                }`}
               >
                 {link.label}
               </Link>
@@ -43,19 +43,18 @@ export function SiteHeader({ user, loading, onSignOut }: Props) {
         </div>
 
         {loading ? null : user ? (
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span className="hidden sm:inline">{user.email}</span>
-            <button
-              onClick={onSignOut}
-              className="text-slate-500 underline hover:text-slate-300"
-            >
-              sign out
+          <div className="flex items-baseline gap-4">
+            <span className="hidden text-xs text-muted sm:inline">
+              {user.email}
+            </span>
+            <button onClick={onSignOut} className="eyebrow text-muted hover:text-ink">
+              Sign out
             </button>
           </div>
         ) : (
           <Link
             href="/signin"
-            className="rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-900"
+            className="eyebrow bg-ink px-4 py-2.5 text-paper transition hover:bg-accent"
           >
             Sign in
           </Link>

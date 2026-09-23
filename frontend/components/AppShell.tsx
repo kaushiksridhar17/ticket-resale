@@ -9,9 +9,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <SiteHeader user={user} loading={loading} onSignOut={() => void logout()} />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">{children}</main>
-      <footer className="border-t border-slate-800 px-6 py-6 text-center text-xs text-slate-600">
-        Tickets change hands at face value or less. Nobody profits from resale.
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">{children}</main>
+      <footer className="border-t border-rule">
+        <p className="mx-auto max-w-4xl px-6 py-8 text-xs leading-relaxed text-muted">
+          Every ticket changes hands at face value or less, in the order people
+          joined the queue. Nobody makes money on resale here, including us.
+        </p>
       </footer>
     </>
   );

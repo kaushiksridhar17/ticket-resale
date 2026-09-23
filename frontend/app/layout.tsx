@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
+import { Archivo, Instrument_Serif } from "next/font/google";
 import { SessionProvider } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
-const geistSans = { variable: "" };
-const geistMono = { variable: "" };
+const display = Instrument_Serif({
+  variable: "--font-display-face",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
+const sans = Archivo({
+  variable: "--font-sans-face",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   title: "Face Value",
@@ -15,9 +25,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${display.variable} ${sans.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-slate-950 text-slate-100">
+      <body className="flex min-h-full flex-col">
         <SessionProvider>
           <AppShell>{children}</AppShell>
         </SessionProvider>

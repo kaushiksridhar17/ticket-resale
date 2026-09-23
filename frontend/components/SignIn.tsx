@@ -50,48 +50,50 @@ export function SignIn({ onSignedIn }: Props) {
   }
 
   return (
-    <div className="mx-auto mt-24 w-full max-w-sm rounded-lg border border-slate-800 bg-slate-900/40 p-6">
-      <h1 className="mb-1 text-lg font-semibold">Sign in</h1>
-      <p className="mb-6 text-xs text-slate-500">
+    <div className="max-w-sm">
+      <h1 className="font-display text-4xl leading-tight">
+        {stage === "email" ? "Who is this?" : "Check your email"}
+      </h1>
+      <p className="mt-3 text-sm leading-relaxed text-muted">
         {stage === "email"
-          ? "We will email you a six digit code."
-          : `Enter the code sent to ${email}.`}
+          ? "No password. We send a six digit code and that is the whole of it."
+          : `We sent six digits to ${email}.`}
       </p>
 
       {stage === "email" ? (
-        <form onSubmit={sendCode} className="space-y-3">
+        <form onSubmit={sendCode} className="mt-8 space-y-4">
           <input
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
-            className="w-full rounded border border-slate-800 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-slate-600"
+            className="w-full border-b border-ink bg-transparent pb-2 text-lg outline-none placeholder:text-rule focus:border-accent"
           />
           <button
             type="submit"
             disabled={pending || email.length < 3}
-            className="w-full rounded bg-slate-100 py-2 text-sm font-medium text-slate-900 disabled:opacity-40"
+            className="eyebrow w-full bg-accent py-3.5 text-paper transition hover:bg-ink disabled:opacity-40"
           >
-            {pending ? "Sending" : "Send code"}
+            {pending ? "Sending" : "Send the code"}
           </button>
         </form>
       ) : (
-        <form onSubmit={submitCode} className="space-y-3">
+        <form onSubmit={submitCode} className="mt-8 space-y-4">
           <input
             value={code}
             onChange={(event) => setCode(event.target.value)}
             inputMode="numeric"
             maxLength={6}
             placeholder="000000"
-            className="w-full rounded border border-slate-800 bg-slate-950 px-3 py-2 text-center font-mono text-lg tracking-widest outline-none focus:border-slate-600"
+            className="w-full border-b border-ink bg-transparent pb-2 text-center font-display text-4xl tracking-[0.3em] outline-none placeholder:text-rule focus:border-accent"
           />
           <button
             type="submit"
             disabled={pending || code.trim().length !== 6}
-            className="w-full rounded bg-slate-100 py-2 text-sm font-medium text-slate-900 disabled:opacity-40"
+            className="eyebrow w-full bg-accent py-3.5 text-paper transition hover:bg-ink disabled:opacity-40"
           >
-            {pending ? "Checking" : "Sign in"}
+            {pending ? "Checking" : "Let me in"}
           </button>
           <button
             type="button"
@@ -100,18 +102,18 @@ export function SignIn({ onSignedIn }: Props) {
               setCode("");
               setError(null);
             }}
-            className="w-full text-xs text-slate-500 hover:text-slate-300"
+            className="eyebrow w-full text-muted hover:text-ink"
           >
             Use a different address
           </button>
         </form>
       )}
 
-      {error && <p className="mt-3 text-xs text-rose-400">{error}</p>}
+      {error && <p className="mt-4 text-sm text-accent">{error}</p>}
 
-      <p className="mt-6 text-[11px] leading-relaxed text-slate-600">
-        In development the code is printed in the engine terminal rather than
-        emailed.
+      <p className="mt-10 border-t border-rule pt-4 text-xs leading-relaxed text-muted">
+        While this is running on your own machine the code is printed in the
+        engine terminal instead of emailed.
       </p>
     </div>
   );

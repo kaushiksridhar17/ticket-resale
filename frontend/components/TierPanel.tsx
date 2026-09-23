@@ -41,46 +41,53 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
     .filter((order) => order.side === "buy")
     .reduce((sum, order) => sum + order.remainingQuantity, 0);
 
-  const canBuy = tier.perPersonLimit - held - queued;
+  const allowance = tier.perPersonLimit - held - queued;
   const open = event.resaleOpen;
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
-        <div className="flex items-baseline justify-between">
-          <h2 className="font-medium">{tier.name}</h2>
-          <span className="font-mono text-sm">
+    <div className="space-y-8">
+      <section className="border border-rule bg-card px-6 pb-6 pt-7">
+        <div className="flex items-baseline justify-between gap-6">
+          <h2 className="font-display text-3xl leading-none">{tier.name}</h2>
+          <p className="font-display text-3xl leading-none">
             {formatPrice(tier.faceValueInCents)}
-          </span>
+          </p>
         </div>
-        <p className="mt-3 text-sm text-slate-400">
+        <div className="eyebrow mt-2 flex items-baseline justify-between gap-6 text-muted">
+          <span>{tier.issued} printed</span>
+          <span>Face value</span>
+        </div>
+
+        <div className="stub -mx-6 my-6 border-t border-dashed border-rule" />
+
+        <p className="text-sm leading-relaxed">
           {!open
             ? "Resale has closed for this event."
             : available > 0
-              ? `${available} available, cheapest ${formatPrice(cheapest ?? 0)}`
+              ? `${available} spare right now, cheapest at ${formatPrice(cheapest ?? 0)}.`
               : waiting > 0
-                ? `None available right now. ${waiting} ${waiting === 1 ? "ticket" : "tickets"} wanted.`
-                : "None available right now."}
+                ? `None spare. ${waiting} ${waiting === 1 ? "ticket is" : "tickets are"} wanted, and they go in the order people asked.`
+                : "None spare right now."}
         </p>
-        <p className="mt-1 text-xs text-slate-600">
-          {tier.issued} issued · limit {tier.perPersonLimit} per person
+        <p className="eyebrow mt-3 text-muted">
+          Limit {tier.perPersonLimit} per person
           {held > 0 ? ` · you hold ${held}` : ""}
         </p>
-      </div>
+      </section>
 
       {!user ? (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5 text-sm text-slate-400">
-          <Link href="/signin" className="text-slate-100 underline">
+        <p className="text-sm text-muted">
+          <Link href="/signin" className="text-ink underline decoration-accent underline-offset-4">
             Sign in
           </Link>{" "}
-          to buy a ticket or join the queue.
-        </div>
+          to take one or join the queue.
+        </p>
       ) : !open ? null : (
         <>
           <BuyPanel
             tier={tier}
             available={available}
-            allowance={canBuy}
+            allowance={allowance}
             onChanged={onChanged}
           />
           {sellable > 0 && (
@@ -90,18 +97,16 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
       )}
 
       {resting.length > 0 && (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
-          <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">
-            Your open requests
-          </h3>
-          <ul className="space-y-2">
+        <section>
+          <h3 className="eyebrow text-muted">Your open requests</h3>
+          <ul className="mt-3 border-t border-rule">
             {resting.map((order) => (
               <li
                 key={order.id}
-                className="flex items-center justify-between text-sm"
+                className="flex items-baseline justify-between gap-4 border-b border-rule py-3 text-sm"
               >
-                <span className="text-slate-300">
-                  {order.side === "buy" ? "Waiting for" : "Selling"}{" "}
+                <span>
+                  {order.side === "buy" ? "Waiting for" : "Offering"}{" "}
                   {order.remainingQuantity}
                   {order.side === "sell" && order.priceInCents !== null
                     ? ` at ${formatPrice(order.priceInCents)}`
@@ -112,16 +117,43 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
                     await cancelOrder(order.id).catch(() => undefined);
                     onChanged();
                   }}
-                  className="text-xs text-slate-500 underline hover:text-slate-300"
+                  className="eyebrow text-muted hover:text-accent"
                 >
-                  {order.side === "buy" ? "leave queue" : "stop selling"}
+                  {order.side === "buy" ? "Leave queue" : "Withdraw"}
                 </button>
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
     </div>
+  );
+}
+
+function Quantity({
+  value,
+  max,
+  onChange,
+}: {
+  value: number;
+  max: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <label className="eyebrow text-muted">
+      How many
+      <select
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="mt-1.5 block w-16 border border-rule bg-card px-2 py-2.5 font-sans text-sm text-ink outline-none focus:border-ink"
+      >
+        {Array.from({ length: max }, (_, index) => index + 1).map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -143,9 +175,9 @@ function BuyPanel({
 
   if (allowance <= 0) {
     return (
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5 text-sm text-slate-400">
-        You have reached the limit of {tier.perPersonLimit} for this event.
-      </div>
+      <p className="border-l-2 border-accent pl-4 text-sm text-muted">
+        You are holding the most anyone can for this event, {tier.perPersonLimit}.
+      </p>
     );
   }
 
@@ -170,10 +202,10 @@ function BuyPanel({
       );
 
       if (got === 0) {
-        setMessage("You are in the queue. We will hold your place in order.");
+        setMessage("You are in the queue. Your place is held in the order you asked.");
       } else if (got < quantity) {
         setMessage(
-          `Got ${got} for $${centsToDollars(spent)}. The rest of your request is queued.`
+          `Got ${got} for $${centsToDollars(spent)}. The rest of your request is in the queue.`
         );
       } else {
         setMessage(`Got ${got} for $${centsToDollars(spent)}.`);
@@ -188,50 +220,34 @@ function BuyPanel({
   }
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
-      <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">
-        {available > 0 ? "Buy" : "Join the queue"}
+    <section>
+      <h3 className="eyebrow text-muted">
+        {available > 0 ? "Take one" : "Join the queue"}
       </h3>
 
-      <div className="flex items-end gap-3">
-        <label className="text-xs text-slate-500">
-          How many
-          <select
-            value={quantity}
-            onChange={(event) => setQuantity(Number(event.target.value))}
-            className="mt-1 block w-20 rounded border border-slate-800 bg-slate-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-slate-600"
-          >
-            {Array.from({ length: allowance }, (_, index) => index + 1).map(
-              (option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              )
-            )}
-          </select>
-        </label>
-
+      <div className="mt-3 flex items-end gap-4">
+        <Quantity value={quantity} max={allowance} onChange={setQuantity} />
         <button
           onClick={() => void buy()}
           disabled={pending}
-          className="flex-1 rounded bg-slate-100 py-2 text-sm font-medium text-slate-900 disabled:opacity-40"
+          className="eyebrow flex-1 bg-accent py-3.5 text-paper transition hover:bg-ink disabled:opacity-40"
         >
           {pending
             ? "Working"
             : available > 0
-              ? `Buy for ${formatPrice(tier.faceValueInCents)} or less`
-              : "Join the queue"}
+              ? `Take ${quantity === 1 ? "it" : "them"} at ${formatPrice(tier.faceValueInCents)} or less`
+              : "Put me in the queue"}
         </button>
       </div>
 
-      <p className="mt-3 text-xs text-slate-600">
-        You never pay more than {formatPrice(tier.faceValueInCents)}. If none are
-        available you keep your place in line until one is.
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        You never pay more than {formatPrice(tier.faceValueInCents)}, and often
+        less. If none are spare you keep your place until one is.
       </p>
 
-      {message && <p className="mt-3 text-xs text-emerald-400">{message}</p>}
-      {error && <p className="mt-3 text-xs text-rose-400">{error}</p>}
-    </div>
+      {message && <p className="mt-3 text-sm">{message}</p>}
+      {error && <p className="mt-3 text-sm text-accent">{error}</p>}
+    </section>
   );
 }
 
@@ -253,7 +269,7 @@ function SellPanel({
   async function sell() {
     const cents = dollarsToCents(price);
     if (cents === null) {
-      setError("That is not a valid amount");
+      setError("That is not an amount");
       return;
     }
     if (cents > tier.faceValueInCents) {
@@ -277,10 +293,10 @@ function SellPanel({
       const sold = result.trades.reduce((sum, trade) => sum + trade.quantity, 0);
       setMessage(
         sold === quantity
-          ? `Sold ${sold} to the front of the queue.`
+          ? `Gone, to whoever was first in the queue.`
           : sold > 0
-            ? `Sold ${sold}. The other ${quantity - sold} are listed.`
-            : "Listed. They will sell to whoever is first in line."
+            ? `${sold} gone. The other ${quantity - sold} are up.`
+            : "Up for grabs. It goes to whoever is first in line."
       );
 
       onChanged();
@@ -292,55 +308,38 @@ function SellPanel({
   }
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
-      <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">
-        Pass one on
-      </h3>
+    <section>
+      <h3 className="eyebrow text-muted">Cannot go? Pass it on</h3>
 
-      <div className="flex items-end gap-3">
-        <label className="text-xs text-slate-500">
-          How many
-          <select
-            value={quantity}
-            onChange={(event) => setQuantity(Number(event.target.value))}
-            className="mt-1 block w-20 rounded border border-slate-800 bg-slate-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-slate-600"
-          >
-            {Array.from({ length: sellable }, (_, index) => index + 1).map(
-              (option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              )
-            )}
-          </select>
-        </label>
+      <div className="mt-3 flex items-end gap-4">
+        <Quantity value={quantity} max={sellable} onChange={setQuantity} />
 
-        <label className="text-xs text-slate-500">
+        <label className="eyebrow text-muted">
           Asking
           <input
             value={price}
             onChange={(event) => setPrice(event.target.value)}
             inputMode="decimal"
-            className="mt-1 block w-24 rounded border border-slate-800 bg-slate-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-slate-600"
+            className="mt-1.5 block w-24 border border-rule bg-card px-2 py-2.5 font-sans text-sm text-ink outline-none focus:border-ink"
           />
         </label>
 
         <button
           onClick={() => void sell()}
           disabled={pending}
-          className="flex-1 rounded border border-slate-700 py-2 text-sm font-medium text-slate-200 disabled:opacity-40"
+          className="eyebrow flex-1 border border-ink py-3.5 text-ink transition hover:bg-ink hover:text-paper disabled:opacity-40"
         >
-          {pending ? "Working" : "List it"}
+          {pending ? "Working" : "Pass it on"}
         </button>
       </div>
 
-      <p className="mt-3 text-xs text-slate-600">
-        Face value is {formatPrice(tier.faceValueInCents)} and you cannot ask more.
-        Ask less if you would rather it went quickly.
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        Face value is {formatPrice(tier.faceValueInCents)} and you cannot ask
+        more. Ask less if you would rather it went quickly.
       </p>
 
-      {message && <p className="mt-3 text-xs text-emerald-400">{message}</p>}
-      {error && <p className="mt-3 text-xs text-rose-400">{error}</p>}
-    </div>
+      {message && <p className="mt-3 text-sm">{message}</p>}
+      {error && <p className="mt-3 text-sm text-accent">{error}</p>}
+    </section>
   );
 }

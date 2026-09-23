@@ -1,19 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  --background: #020617;
-  --foreground: #f1f5f9;
+  --paper: #faf6ef;
+  --card: #ffffff;
+  --ink: #191510;
+  --muted: #756b5c;
+  --rule: #e4dccd;
+  --accent: #c4411f;
+  --accent-soft: #fbece7;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --font-display: var(--font-display-face), Georgia, serif;
+  --font-sans: var(--font-sans-face), system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans-face), system-ui, sans-serif;
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stub {
+  position: relative;
+}
+
+.stub::before,
+.stub::after {
+  content: "";
+  position: absolute;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+}
+
+.stub::before {
+  left: -10px;
+  clip-path: inset(0 0 0 50%);
+}
+
+.stub::after {
+  right: -10px;
+  clip-path: inset(0 50% 0 0);
 }

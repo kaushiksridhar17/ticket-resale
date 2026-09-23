@@ -38,38 +38,40 @@ export default function EventsPage() {
     };
   }, []);
 
-  if (error) {
-    return <p className="text-sm text-rose-400">{error}</p>;
-  }
-
-  if (events === null) {
-    return <p className="text-sm text-slate-600">Loading</p>;
-  }
-
-  if (events.length === 0) {
-    return (
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
-        <p className="text-sm text-slate-400">No events yet.</p>
-        <p className="mt-2 text-xs text-slate-600">
-          An organizer needs to create one before tickets can change hands.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Events</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Every ticket here sells for face value or less, first come first served.
+    <div>
+      <header className="max-w-xl">
+        <p className="eyebrow text-accent">No markup, no touts</p>
+        <h1 className="mt-3 font-display text-5xl leading-[1.05]">
+          Tickets at the price
+          <br />
+          they were <span className="italic">printed</span> at.
+        </h1>
+        <p className="mt-5 text-sm leading-relaxed text-muted">
+          When somebody can no longer go, their ticket comes back here and goes
+          to whoever has been waiting longest. Never for more than face value.
         </p>
-      </div>
+      </header>
 
-      <div className="space-y-3">
-        {events.map((event) => (
-          <EventRow key={event.id} event={event} />
-        ))}
+      <div className="mt-14">
+        <h2 className="eyebrow text-muted">What is on</h2>
+
+        {error ? (
+          <p className="mt-6 text-sm text-accent">{error}</p>
+        ) : events === null ? (
+          <p className="mt-6 text-sm text-muted">Loading</p>
+        ) : events.length === 0 ? (
+          <p className="mt-6 border-t border-rule pt-6 text-sm text-muted">
+            Nothing yet. An organizer needs to put an event up before tickets can
+            change hands.
+          </p>
+        ) : (
+          <ul className="mt-4 border-t border-rule">
+            {events.map((event) => (
+              <EventRow key={event.id} event={event} />
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -83,51 +85,38 @@ function EventRow({ event }: { event: EventSummary }) {
     .sort((a, b) => a - b)[0];
 
   return (
-    <Link
-      href={`/events/${event.id}`}
-      className="block rounded-lg border border-slate-800 bg-slate-900/40 p-5 transition hover:border-slate-700 hover:bg-slate-900/70"
-    >
-      <div className="flex items-start justify-between gap-4">
+    <li className="border-b border-rule">
+      <Link
+        href={`/events/${event.id}`}
+        className="group -mx-4 flex items-baseline justify-between gap-6 px-4 py-6 transition hover:bg-card"
+      >
         <div>
-          <h2 className="font-medium">{event.name}</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h3 className="font-display text-2xl leading-tight group-hover:text-accent">
+            {event.name}
+          </h3>
+          <p className="mt-1.5 text-sm text-muted">
             {event.venue} · {formatDate(event.startsAt)}
           </p>
         </div>
-        <StatusBadge event={event} />
-      </div>
 
-      <p className="mt-4 text-xs text-slate-400">
-        {!event.resaleOpen
-          ? "Resale is closed"
-          : available > 0
-            ? `${available} available from ${formatPrice(cheapest ?? 0)}`
-            : waiting > 0
-              ? `Sold out · ${waiting} wanted`
-              : "Sold out"}
-      </p>
-    </Link>
-  );
-}
-
-function StatusBadge({ event }: { event: EventSummary }) {
-  if (event.status === "cancelled") {
-    return (
-      <span className="rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-300">
-        Cancelled
-      </span>
-    );
-  }
-  if (event.status === "closed") {
-    return (
-      <span className="rounded-full bg-slate-700/40 px-2.5 py-1 text-[11px] text-slate-400">
-        Closed
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-300">
-      On sale
-    </span>
+        <div className="shrink-0 text-right">
+          <p className="font-display text-xl">
+            {event.tiers.length > 1 ? "from " : ""}
+            {formatPrice(cheapest ?? 0)}
+          </p>
+          <p className="eyebrow mt-1.5 text-muted">
+            {!event.resaleOpen
+              ? event.status === "cancelled"
+                ? "Cancelled"
+                : "Closed"
+              : available > 0
+                ? `${available} available`
+                : waiting > 0
+                  ? `${waiting} in the queue`
+                  : "None spare"}
+          </p>
+        </div>
+      </Link>
+    </li>
   );
 }

@@ -35,7 +35,7 @@ export default function EventPage() {
           if (!cancelled) {
             setError(
               caught instanceof ApiError && caught.status === 404
-                ? "That event does not exist."
+                ? "There is no such event."
                 : "Could not load this event."
             );
           }
@@ -52,57 +52,62 @@ export default function EventPage() {
 
   if (error) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-rose-400">{error}</p>
-        <Link href="/" className="text-sm text-slate-400 underline">
-          Back to events
+      <div>
+        <p className="font-display text-2xl">{error}</p>
+        <Link
+          href="/"
+          className="eyebrow mt-4 inline-block text-muted hover:text-ink"
+        >
+          ← Everything that is on
         </Link>
       </div>
     );
   }
 
   if (!event) {
-    return <p className="text-sm text-slate-600">Loading</p>;
+    return <p className="text-sm text-muted">Loading</p>;
   }
 
   const selected =
     event.tiers.find((tier) => tier.tierId === tierId) ?? event.tiers[0];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/" className="text-xs text-slate-500 hover:text-slate-300">
-          ← All events
-        </Link>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight">{event.name}</h1>
-        <p className="mt-1 text-sm text-slate-500">
+    <div>
+      <Link href="/" className="eyebrow text-muted hover:text-ink">
+        ← Everything that is on
+      </Link>
+
+      <header className="mt-6 border-b border-rule pb-8">
+        <h1 className="font-display text-5xl leading-[1.05]">{event.name}</h1>
+        <p className="eyebrow mt-4 text-muted">
           {event.venue} · {formatDate(event.startsAt)}
         </p>
+
         {event.status === "cancelled" ? (
-          <p className="mt-3 rounded border border-rose-900 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+          <p className="mt-5 border-l-2 border-accent pl-4 text-sm">
             This event has been cancelled.
           </p>
-        ) : event.status === "closed" ? (
-          <p className="mt-3 rounded border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-400">
+        ) : !event.resaleOpen ? (
+          <p className="mt-5 border-l-2 border-rule pl-4 text-sm text-muted">
             Resale has closed.
           </p>
         ) : (
-          <p className="mt-2 text-xs text-slate-600">
+          <p className="mt-3 text-xs text-muted">
             Resale closes {formatDateTime(event.salesCloseAt)}
           </p>
         )}
-      </div>
+      </header>
 
       {event.tiers.length > 1 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="mt-8 flex flex-wrap gap-6">
           {event.tiers.map((tier) => (
             <button
               key={tier.tierId}
               onClick={() => setTierId(tier.tierId)}
-              className={`rounded px-3 py-1.5 text-sm transition ${
+              className={`eyebrow border-b-2 pb-1 transition ${
                 tier.tierId === selected?.tierId
-                  ? "bg-slate-100 text-slate-900"
-                  : "bg-slate-900 text-slate-400 hover:bg-slate-800"
+                  ? "border-accent text-ink"
+                  : "border-transparent text-muted hover:text-ink"
               }`}
             >
               {tier.name}
@@ -111,16 +116,18 @@ export default function EventPage() {
         </div>
       )}
 
-      {selected && (
-        <TierPanel
-          key={selected.symbol}
-          event={event}
-          tier={selected}
-          user={user}
-          account={account}
-          onChanged={() => void refresh()}
-        />
-      )}
+      <div className="mt-8">
+        {selected && (
+          <TierPanel
+            key={selected.symbol}
+            event={event}
+            tier={selected}
+            user={user}
+            account={account}
+            onChanged={() => void refresh()}
+          />
+        )}
+      </div>
     </div>
   );
 }

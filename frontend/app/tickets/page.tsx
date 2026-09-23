@@ -39,94 +39,101 @@ export default function TicketsPage() {
   }, [user]);
 
   if (loading) {
-    return <p className="text-sm text-slate-600">Loading</p>;
+    return <p className="text-sm text-muted">Loading</p>;
   }
 
   if (!user) {
     return (
-      <p className="text-sm text-slate-400">
-        <Link href="/signin" className="text-slate-100 underline">
+      <p className="text-sm text-muted">
+        <Link
+          href="/signin"
+          className="text-ink underline decoration-accent underline-offset-4"
+        >
           Sign in
         </Link>{" "}
-        to see your tickets.
+        to see what you are holding.
       </p>
     );
   }
 
   if (error) {
-    return <p className="text-sm text-rose-400">{error}</p>;
+    return <p className="text-sm text-accent">{error}</p>;
   }
 
   if (tickets === null) {
-    return <p className="text-sm text-slate-600">Loading</p>;
+    return <p className="text-sm text-muted">Loading</p>;
   }
 
   const groups = groupByTier(tickets);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">My tickets</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Each ticket has its own number. Passing one on moves that exact ticket.
-        </p>
-      </div>
+    <div>
+      <h1 className="font-display text-4xl leading-tight">What you are holding</h1>
+      <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
+        Every ticket carries its own number. Passing one on moves that exact
+        ticket, and the one you hold keeps a record of everybody who held it
+        before you.
+      </p>
 
       {groups.length === 0 ? (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
-          <p className="text-sm text-slate-400">You do not hold any tickets.</p>
+        <p className="mt-10 border-t border-rule pt-6 text-sm text-muted">
+          Nothing yet.{" "}
           <Link
             href="/"
-            className="mt-2 inline-block text-xs text-slate-500 underline"
+            className="text-ink underline decoration-accent underline-offset-4"
           >
-            Browse events
+            See what is on
           </Link>
-        </div>
+          .
+        </p>
       ) : (
-        groups.map((group) => (
-          <div
-            key={group.symbol}
-            className="rounded-lg border border-slate-800 bg-slate-900/40 p-5"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="font-medium">{group.eventName}</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  {group.tierName}
-                  {group.venue ? ` · ${group.venue}` : ""}
-                  {group.startsAt ? ` · ${formatDate(group.startsAt)}` : ""}
-                </p>
+        <div className="mt-10 space-y-10">
+          {groups.map((group) => (
+            <section key={group.symbol}>
+              <div className="flex items-baseline justify-between gap-6 border-b border-rule pb-3">
+                <div>
+                  <h2 className="font-display text-2xl leading-tight">
+                    {group.eventName}
+                  </h2>
+                  <p className="eyebrow mt-1.5 text-muted">
+                    {group.tierName}
+                    {group.venue ? ` · ${group.venue}` : ""}
+                    {group.startsAt ? ` · ${formatDate(group.startsAt)}` : ""}
+                  </p>
+                </div>
+                {group.eventId && (
+                  <Link
+                    href={`/events/${group.eventId}`}
+                    className="eyebrow shrink-0 text-muted hover:text-accent"
+                  >
+                    Event page
+                  </Link>
+                )}
               </div>
-              {group.eventId && (
-                <Link
-                  href={`/events/${group.eventId}`}
-                  className="shrink-0 text-xs text-slate-500 underline hover:text-slate-300"
-                >
-                  event page
-                </Link>
-              )}
-            </div>
 
-            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-              {group.tickets.map((ticket) => (
-                <li
-                  key={ticket.id}
-                  className="flex items-center justify-between rounded border border-slate-800 bg-slate-950 px-3 py-2"
-                >
-                  <span className="font-mono text-sm">#{ticket.serial}</span>
-                  <span className="text-xs text-slate-600">
-                    {ticket.faceValueInCents === null
-                      ? ""
-                      : formatPrice(ticket.faceValueInCents)}
-                    {ticket.rotation > 1
-                      ? ` · passed on ${ticket.rotation - 1}×`
-                      : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))
+              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                {group.tickets.map((ticket) => (
+                  <li
+                    key={ticket.id}
+                    className="flex items-baseline justify-between border border-rule bg-card px-4 py-3"
+                  >
+                    <span className="font-display text-2xl leading-none">
+                      No. {ticket.serial}
+                    </span>
+                    <span className="eyebrow text-right text-muted">
+                      {ticket.faceValueInCents === null
+                        ? ""
+                        : formatPrice(ticket.faceValueInCents)}
+                      {ticket.rotation > 1
+                        ? ` · ${ticket.rotation - 1} owners before you`
+                        : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );
