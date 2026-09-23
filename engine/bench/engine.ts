@@ -1,6 +1,8 @@
 import { MatchingEngine } from "../src/matchingEngine.js";
 import type { Order, OrderType, Side } from "../src/types.js";
 
+const SYMBOL = "evt_demo:GA";
+
 function mulberry32(seed: number): () => number {
   let a = seed;
   return () => {
@@ -26,7 +28,7 @@ function buildOrders(count: number, seed: number): Order[] {
     orders.push({
       id: `ord_${i}`,
       userId: users[Math.floor(random() * users.length)]!,
-      symbol: "ACME",
+      symbol: SYMBOL,
       side,
       type,
       priceInCents,

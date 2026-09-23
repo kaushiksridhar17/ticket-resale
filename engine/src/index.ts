@@ -5,6 +5,7 @@ const HOST = process.env.HOST ?? "0.0.0.0";
 const LOGGER = process.env.LOGGER !== "false";
 const DATABASE_URL = process.env.DATABASE_URL ?? null;
 const AUTH_PEPPER = process.env.AUTH_PEPPER ?? null;
+const LOG_PATH = process.env.LOG_PATH ?? undefined;
 
 async function main() {
   if (process.env.NODE_ENV === "production") {
@@ -22,6 +23,7 @@ async function main() {
   const { app, state, database } = await buildServer({
     logger: LOGGER,
     databaseUrl: DATABASE_URL,
+    ...(LOG_PATH ? { logPath: LOG_PATH } : {}),
     ...(AUTH_PEPPER ? { authPepper: AUTH_PEPPER } : {}),
   });
 
