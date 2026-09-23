@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MatchingEngine } from "./matchingEngine.js";
 import { makeOrder, resetOrderCounter } from "./testUtils.js";
 
+const SYMBOL = "evt_demo:GA";
+
 describe("MatchingEngine", () => {
   let engine: MatchingEngine;
 
@@ -15,7 +17,7 @@ describe("MatchingEngine", () => {
 
     expect(result.trades).toHaveLength(0);
     expect(result.order.status).toBe("open");
-    expect(engine.snapshot("ACME").asks[0]?.totalQuantity).toBe(100);
+    expect(engine.snapshot(SYMBOL).asks[0]?.totalQuantity).toBe(100);
   });
 
   it("executes at the resting order's price, not the incoming price", () => {
@@ -52,7 +54,7 @@ describe("MatchingEngine", () => {
 
     expect(result.order.status).toBe("partially_filled");
     expect(result.order.remainingQuantity).toBe(60);
-    expect(engine.snapshot("ACME").bids[0]?.totalQuantity).toBe(60);
+    expect(engine.snapshot(SYMBOL).bids[0]?.totalQuantity).toBe(60);
   });
 
   it("cancels the unfilled remainder of a market order instead of resting it", () => {
@@ -61,7 +63,7 @@ describe("MatchingEngine", () => {
 
     expect(result.order.remainingQuantity).toBe(60);
     expect(result.order.status).toBe("partially_filled");
-    expect(engine.snapshot("ACME").bids).toHaveLength(0);
+    expect(engine.snapshot(SYMBOL).bids).toHaveLength(0);
   });
 
   it("cancels a market order entirely when the book is empty", () => {
@@ -69,7 +71,7 @@ describe("MatchingEngine", () => {
 
     expect(result.trades).toHaveLength(0);
     expect(result.order.status).toBe("cancelled");
-    expect(engine.snapshot("ACME").bids).toHaveLength(0);
+    expect(engine.snapshot(SYMBOL).bids).toHaveLength(0);
   });
 
   it("does not match a buy below the best ask", () => {
@@ -77,7 +79,7 @@ describe("MatchingEngine", () => {
     const result = engine.submit(makeOrder("bob", "buy", "limit", 5025, 100));
 
     expect(result.trades).toHaveLength(0);
-    expect(engine.snapshot("ACME").bids[0]?.priceInCents).toBe(5025);
+    expect(engine.snapshot(SYMBOL).bids[0]?.priceInCents).toBe(5025);
   });
 
   it("prevents a user from trading with themselves", () => {
@@ -89,20 +91,20 @@ describe("MatchingEngine", () => {
 
   it("removes a cancelled order from the book", () => {
     const resting = engine.submit(makeOrder("alice", "sell", "limit", 5050, 100));
-    const cancelled = engine.cancel("ACME", resting.order.id);
+    const cancelled = engine.cancel(SYMBOL, resting.order.id);
 
     expect(cancelled?.status).toBe("cancelled");
-    expect(engine.snapshot("ACME").asks).toHaveLength(0);
+    expect(engine.snapshot(SYMBOL).asks).toHaveLength(0);
   });
 
   it("keeps symbols isolated from each other", () => {
-    engine.submit(makeOrder("alice", "sell", "limit", 5050, 100, "ACME"));
+    engine.submit(makeOrder("alice", "sell", "limit", 5050, 100, SYMBOL));
     const result = engine.submit(
       makeOrder("bob", "buy", "limit", 5050, 100, "ZENX")
     );
 
     expect(result.trades).toHaveLength(0);
-    expect(engine.snapshot("ACME").asks[0]?.totalQuantity).toBe(100);
+    expect(engine.snapshot(SYMBOL).asks[0]?.totalQuantity).toBe(100);
   });
 
   it("conserves quantity across every trade", () => {

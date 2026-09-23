@@ -110,12 +110,21 @@ export default function TicketsPage() {
                 )}
               </div>
 
+              {group.cancelled && (
+                <p className="mt-4 border-l-2 border-accent pl-4 text-sm">
+                  This event has been called off. These tickets will not get
+                  anybody in.
+                </p>
+              )}
+
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {group.tickets.map((ticket) => (
                   <li key={ticket.id}>
                     <Link
                       href={`/pass/${ticket.id}`}
-                      className="flex items-baseline justify-between border border-rule bg-card px-4 py-3 transition hover:border-ink"
+                      className={`flex items-baseline justify-between border border-rule bg-card px-4 py-3 transition hover:border-ink ${
+                        group.cancelled ? "opacity-50" : ""
+                      }`}
                     >
                       <span className="font-display text-2xl leading-none">
                         No. {ticket.serial}
@@ -149,6 +158,7 @@ interface Group {
   tierName: string;
   venue: string | null;
   startsAt: number | null;
+  cancelled: boolean;
   tickets: TicketSummary[];
 }
 
@@ -165,6 +175,7 @@ function groupByTier(tickets: TicketSummary[]): Group[] {
         tierName: ticket.tierName ?? ticket.symbol,
         venue: ticket.venue,
         startsAt: ticket.startsAt,
+        cancelled: ticket.eventStatus === "cancelled",
         tickets: [],
       };
       groups.set(ticket.symbol, group);

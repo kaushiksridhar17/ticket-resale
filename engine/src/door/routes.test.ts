@@ -273,6 +273,39 @@ describe("the door", () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it("turns everybody away once an event is cancelled", async () => {
+    const [ticket] = await ticketsOf(rosie);
+    const { token } = (await passFor(rosie, ticket!.id)).json();
+
+    await app.inject({
+      method: "POST",
+      url: `/events/${eventId}/cancel`,
+      cookies: { session: organizer },
+    });
+
+    const response = await scan(staff, token);
+
+    expect(response.json()).toMatchObject({
+      admitted: false,
+      reason: "event_off",
+    });
+  });
+
+  it("stops handing out passes for a cancelled event", async () => {
+    const [ticket] = await ticketsOf(rosie);
+
+    await app.inject({
+      method: "POST",
+      url: `/events/${eventId}/cancel`,
+      cookies: { session: organizer },
+    });
+
+    const response = await passFor(rosie, ticket!.id);
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().cancelled).toBe(true);
+  });
+
   it("remembers who came in once the pass is used", async () => {
     const [ticket] = await ticketsOf(rosie);
     const { token } = (await passFor(rosie, ticket!.id)).json();

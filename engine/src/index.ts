@@ -7,9 +7,16 @@ const DATABASE_URL = process.env.DATABASE_URL ?? null;
 const AUTH_PEPPER = process.env.AUTH_PEPPER ?? null;
 
 async function main() {
-  if (!AUTH_PEPPER && process.env.NODE_ENV === "production") {
-    console.error("AUTH_PEPPER must be set in production");
-    process.exit(1);
+  if (process.env.NODE_ENV === "production") {
+    for (const [name, value] of [
+      ["AUTH_PEPPER", AUTH_PEPPER],
+      ["DOOR_KEY", process.env.DOOR_KEY ?? null],
+    ] as const) {
+      if (!value) {
+        console.error(`${name} must be set in production`);
+        process.exit(1);
+      }
+    }
   }
 
   const { app, state, database } = await buildServer({
@@ -20,8 +27,17 @@ async function main() {
 
   try {
     await app.listen({ port: PORT, host: HOST });
-    console.log(`API listening on http://localhost:${PORT}`);
-    console.log(`logger=${LOGGER} database=${database ? "on" : "off"}`);
+    console.log(`Face Value API listening on http://localhost:${PORT}`);
+    console.log(
+      `logger=${LOGGER} database=${database ? "on" : "off"}`
+    );
+    if (!DATABASE_URL) {
+      console.warn(
+        "No DATABASE_URL. Events survive in the log but accounts do not: " +
+          "everyone gets a new identity when this restarts, and organizers " +
+          "lose their events."
+      );
+    }
     if (state.recovered > 0) {
       console.log(`Recovered ${state.recovered} commands from the event log`);
     }

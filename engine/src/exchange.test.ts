@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Exchange, OrderRejected } from "./exchange.js";
 import { makeOrder, resetOrderCounter } from "./testUtils.js";
 
-const SYMBOL = "ACME";
+const SYMBOL = "evt_demo:GA";
 
 describe("Exchange", () => {
   let exchange: Exchange;

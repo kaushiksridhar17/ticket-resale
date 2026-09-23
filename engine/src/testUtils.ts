@@ -12,7 +12,7 @@ export function makeOrder(
   type: OrderType,
   priceInCents: number | null,
   quantity: number,
-  symbol = "ACME"
+  symbol = "evt_demo:GA"
 ): Order {
   counter += 1;
   return {

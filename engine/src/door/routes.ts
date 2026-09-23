@@ -28,6 +28,7 @@ type Refusal =
   | "unknown_ticket"
   | "passed_on"
   | "wrong_event"
+  | "event_off"
   | "already_inside";
 
 const REASONS: Record<Refusal, string> = {
@@ -37,6 +38,7 @@ const REASONS: Record<Refusal, string> = {
   unknown_ticket: "No such ticket",
   passed_on: "This ticket has been passed on to somebody else",
   wrong_event: "This ticket is for a different event",
+  event_off: "This event has been cancelled",
   already_inside: "This ticket has already been used",
 };
 
@@ -51,6 +53,14 @@ export function registerDoorRoutes(app: FastifyInstance, deps: DoorDeps): void {
 
     if (!ticket || ticket.holderId !== user.id) {
       return reply.code(404).send({ error: "You do not hold that ticket" });
+    }
+
+    const ref = state.events.resolve(ticket.symbol);
+    if (ref?.event.status === "cancelled") {
+      return reply.code(409).send({
+        error: "This event has been cancelled",
+        cancelled: true,
+      });
     }
 
     const issued = passes.issue(ticket.id, ticket.rotation);
@@ -78,6 +88,14 @@ export function registerDoorRoutes(app: FastifyInstance, deps: DoorDeps): void {
 
     const refuse = (reason: Refusal) =>
       reply.send({ admitted: false, reason, message: REASONS[reason] });
+
+    if (event.status === "cancelled") {
+      return reply.send({
+        admitted: false,
+        reason: "event_off" satisfies Refusal,
+        message: REASONS.event_off,
+      });
+    }
 
     const pass = passes.verify(token);
     if (pass === "malformed") {

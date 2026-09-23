@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import QRCode from "qrcode";
-import { fetchPass } from "@/lib/api";
+import { ApiError, fetchPass } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { TicketPass } from "@/lib/types";
@@ -37,9 +37,13 @@ export default function PassPage() {
             setCopied(false);
           }
         })
-        .catch(() => {
+        .catch((caught: unknown) => {
           if (!cancelled) {
-            setError("That ticket is not yours, or no longer exists.");
+            setError(
+              caught instanceof ApiError && caught.status === 409
+                ? "This event has been called off, so there is no ticket to show."
+                : "That ticket is not yours, or no longer exists."
+            );
           }
         });
 
