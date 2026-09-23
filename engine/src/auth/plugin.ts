@@ -5,6 +5,14 @@ import type { Role, User } from "./types.js";
 
 export const SESSION_COOKIE = "session";
 
+function secureCookies(): boolean {
+  const explicit = process.env.SECURE_COOKIES;
+  if (explicit !== undefined) {
+    return explicit !== "false";
+  }
+  return process.env.NODE_ENV === "production";
+}
+
 declare module "fastify" {
   interface FastifyRequest {
     user: User | null;
@@ -36,7 +44,7 @@ export function setSessionCookie(
     path: "/",
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookies(),
     maxAge: maxAgeSeconds,
   });
 }

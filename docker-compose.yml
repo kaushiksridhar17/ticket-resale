@@ -2,15 +2,15 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: exchange
-      POSTGRES_PASSWORD: exchange
-      POSTGRES_DB: exchange
+      POSTGRES_USER: facevalue
+      POSTGRES_PASSWORD: facevalue
+      POSTGRES_DB: facevalue
     ports:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U exchange -d exchange"]
+      test: ["CMD-SHELL", "pg_isready -U facevalue -d facevalue"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -22,11 +22,12 @@ services:
       - "3001:3001"
     environment:
       LOGGER: "true"
-      DATABASE_URL: postgres://exchange:exchange@db:5432/exchange
+      DATABASE_URL: postgres://facevalue:facevalue@db:5432/facevalue
       AUTH_PEPPER: ${AUTH_PEPPER:-development-pepper}
       DOOR_KEY: ${DOOR_KEY:-development-door-key}
       ORGANIZER_EMAILS: ${ORGANIZER_EMAILS:-}
       STAFF_EMAILS: ${STAFF_EMAILS:-}
+      SECURE_COOKIES: "false"
     volumes:
       - engine-data:/app/data
     depends_on:

@@ -9,14 +9,30 @@ const LOG_PATH = process.env.LOG_PATH ?? undefined;
 
 async function main() {
   if (process.env.NODE_ENV === "production") {
-    for (const [name, value] of [
-      ["AUTH_PEPPER", AUTH_PEPPER],
-      ["DOOR_KEY", process.env.DOOR_KEY ?? null],
-    ] as const) {
+    const secrets = [
+      ["AUTH_PEPPER", AUTH_PEPPER, "development-pepper"],
+      ["DOOR_KEY", process.env.DOOR_KEY ?? null, "development-door-key"],
+    ] as const;
+
+    for (const [name, value, placeholder] of secrets) {
       if (!value) {
         console.error(`${name} must be set in production`);
         process.exit(1);
       }
+      if (value === placeholder) {
+        console.warn(
+          `${name} is still the value this project ships with. Anybody who has ` +
+            "read the source can forge sessions or door passes. Set a real one " +
+            "before this is reachable from outside your machine."
+        );
+      }
+    }
+
+    if (process.env.SECURE_COOKIES === "false") {
+      console.warn(
+        "SECURE_COOKIES=false, so sign-in cookies travel over plain HTTP. " +
+          "Fine on your own machine, not behind a real domain."
+      );
     }
   }
 
