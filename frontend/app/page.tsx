@@ -4,38 +4,22 @@ import { useEffect, useState } from "react";
 import { fetchSymbols } from "@/lib/api";
 import { useExchangeSocket } from "@/lib/useExchangeSocket";
 import { useAccount } from "@/lib/useAccount";
+import { useSession } from "@/lib/useSession";
+import { SignIn } from "@/components/SignIn";
 import { OrderBook } from "@/components/OrderBook";
 import { TradeFeed } from "@/components/TradeFeed";
 import { OrderForm } from "@/components/OrderForm";
 import { Portfolio } from "@/components/Portfolio";
 import { PriceChart } from "@/components/PriceChart";
 
-function loadUserId(): string {
-  try {
-    const existing = window.localStorage.getItem("exchange-user-id");
-    if (existing) {
-      return existing;
-    }
-    const generated = `trader_${Math.random().toString(36).slice(2, 8)}`;
-    window.localStorage.setItem("exchange-user-id", generated);
-    return generated;
-  } catch {
-    return "trader";
-  }
-}
-
 export default function Home() {
   const [symbols, setSymbols] = useState<string[]>([]);
   const [symbol, setSymbol] = useState("ACME");
-  const [userId, setUserId] = useState("trader");
   const [selectedPrice, setSelectedPrice] = useState<number | null>(null);
 
+  const { user, loading, setUser, logout } = useSession();
   const { status, book, trades } = useExchangeSocket(symbol);
-  const { account, refresh } = useAccount(userId);
-
-  useEffect(() => {
-    setUserId(loadUserId());
-  }, []);
+  const { account, refresh } = useAccount(user !== null);
 
   useEffect(() => {
     fetchSymbols()
@@ -44,9 +28,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!user) {
+      return;
+    }
     const timer = setInterval(() => void refresh(), 2000);
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, user]);
 
   const statusColor =
     status === "open"
@@ -55,13 +42,37 @@ export default function Home() {
         ? "bg-amber-500"
         : "bg-rose-500";
 
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100">
+        <p className="mt-24 text-center text-sm text-slate-600">Loading</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-slate-950 px-6 text-slate-100">
+        <SignIn onSignedIn={setUser} />
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-7xl px-6 py-8">
         <header className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Exchange</h1>
-            <p className="text-xs text-slate-500">trading as {userId}</p>
+            <p className="text-xs text-slate-500">
+              signed in as {user.email}
+              <button
+                onClick={() => void logout()}
+                className="ml-3 text-slate-600 underline hover:text-slate-400"
+              >
+                sign out
+              </button>
+            </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <span className={`h-2 w-2 rounded-full ${statusColor}`} />
@@ -94,11 +105,10 @@ export default function Home() {
             <OrderBook book={book} onPriceClick={setSelectedPrice} />
           </div>
           <div className="lg:col-span-1">
-            <TradeFeed trades={trades} userId={userId} />
+            <TradeFeed trades={trades} userId={account?.userId ?? user.id} />
           </div>
           <div className="lg:col-span-1">
             <OrderForm
-              userId={userId}
               symbol={symbol}
               account={account}
               selectedPrice={selectedPrice}

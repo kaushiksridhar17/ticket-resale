@@ -3,6 +3,7 @@ import type {
   Order,
   OrderBookSnapshot,
   Trade,
+  User,
 } from "./types";
 import type { ServerCandle } from "./candles";
 
@@ -23,7 +24,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${BASE}${path}`, { ...init, headers });
+  const response = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
 
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
@@ -39,7 +44,44 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(message, response.status);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
+}
+
+export function requestSignInCode(email: string): Promise<{ sent: boolean }> {
+  return request("/auth/request", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function verifySignInCode(
+  email: string,
+  code: string
+): Promise<{ user: User }> {
+  return request("/auth/verify", {
+    method: "POST",
+    body: JSON.stringify({ email, code }),
+  });
+}
+
+export function signOut(): Promise<void> {
+  return request("/auth/logout", { method: "POST" });
+}
+
+export async function fetchMe(): Promise<User | null> {
+  try {
+    const result = await request<{ user: User }>("/me");
+    return result.user;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export function fetchSymbols(): Promise<{ symbols: string[] }> {
@@ -54,8 +96,8 @@ export function fetchTrades(symbol: string): Promise<{ trades: Trade[] }> {
   return request(`/trades/${symbol}`);
 }
 
-export function fetchAccount(userId: string): Promise<AccountSummary> {
-  return request(`/account/${encodeURIComponent(userId)}`);
+export function fetchAccount(): Promise<AccountSummary> {
+  return request("/account");
 }
 
 export async function fetchCandles(
@@ -77,7 +119,6 @@ export async function fetchCandles(
 }
 
 export interface PlaceOrderInput {
-  userId: string;
   symbol: string;
   side: "buy" | "sell";
   type: "limit" | "market";

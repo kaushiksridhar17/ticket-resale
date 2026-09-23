@@ -1,6 +1,12 @@
 export type Side = "buy" | "sell";
 export type OrderType = "limit" | "market";
 export type OrderStatus = "open" | "partially_filled" | "filled" | "cancelled";
+export interface User {
+  id: string;
+  email: string;
+  displayName: string | null;
+  role: "attendee" | "organizer" | "staff";
+}
 
 export interface Order {
   id: string;

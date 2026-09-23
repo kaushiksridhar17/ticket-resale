@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ApiError, placeOrder } from "@/lib/api";
 import { centsToDollars, dollarsToCents } from "@/lib/format";
 import type { AccountSummary, Side } from "@/lib/types";
 
 interface Props {
-  userId: string;
   symbol: string;
   account: AccountSummary | null;
   selectedPrice: number | null;
@@ -16,7 +15,6 @@ interface Props {
 }
 
 export function OrderForm({
-  userId,
   symbol,
   account,
   selectedPrice,
@@ -33,17 +31,19 @@ export function OrderForm({
     tone: "error" | "success";
   } | null>(null);
   const [pending, setPending] = useState(false);
+  const [appliedPrice, setAppliedPrice] = useState<number | null>(null);
+  const [formSymbol, setFormSymbol] = useState(symbol);
 
-  useEffect(() => {
-    if (selectedPrice !== null) {
-      setPrice(centsToDollars(selectedPrice).replace(/,/g, ""));
-      setType("limit");
-    }
-  }, [selectedPrice]);
-
-  useEffect(() => {
+  if (formSymbol !== symbol) {
+    setFormSymbol(symbol);
     setMessage(null);
-  }, [symbol]);
+  }
+
+  if (selectedPrice !== null && selectedPrice !== appliedPrice) {
+    setAppliedPrice(selectedPrice);
+    setPrice(centsToDollars(selectedPrice).replace(/,/g, ""));
+    setType("limit");
+  }
 
   const position = account?.positions.find((entry) => entry.symbol === symbol);
   const availableCash = account
@@ -80,7 +80,6 @@ export function OrderForm({
 
     try {
       const result = await placeOrder({
-        userId,
         symbol,
         side,
         type,
