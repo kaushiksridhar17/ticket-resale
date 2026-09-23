@@ -1,6 +1,8 @@
 import type {
   AccountSummary,
+  EventReport,
   EventSummary,
+  NewEvent,
   Order,
   OrderBookSnapshot,
   TicketSummary,
@@ -111,6 +113,33 @@ export function fetchEvent(eventId: string): Promise<{ event: EventSummary }> {
 
 export function fetchTickets(): Promise<{ tickets: TicketSummary[] }> {
   return request("/tickets");
+}
+
+export function fetchReport(eventId: string): Promise<EventReport> {
+  return request(`/events/${eventId}/report`);
+}
+
+export function createEvent(event: NewEvent): Promise<{ event: EventSummary }> {
+  return request("/events", { method: "POST", body: JSON.stringify(event) });
+}
+
+export function issueTickets(
+  eventId: string,
+  tierId: string,
+  count: number
+): Promise<{ issued: number }> {
+  return request(`/events/${eventId}/tickets`, {
+    method: "POST",
+    body: JSON.stringify({ tierId, count }),
+  });
+}
+
+export function closeSales(eventId: string): Promise<{ event: EventSummary }> {
+  return request(`/events/${eventId}/close`, { method: "POST" });
+}
+
+export function cancelEvent(eventId: string): Promise<{ event: EventSummary }> {
+  return request(`/events/${eventId}/cancel`, { method: "POST" });
 }
 
 export interface PlaceOrderInput {

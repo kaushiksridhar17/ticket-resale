@@ -368,6 +368,107 @@ describe("event and ticket routes", () => {
     expect(cancelled.statusCode).toBe(403);
   });
 
+  it("reports what has happened to an organizer's own event", async () => {
+    const { event } = (await createEvent()).json();
+    await issue(event.id, 6);
+    const symbol = `${event.id}:GA`;
+
+    await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 2 },
+      cookies: { session: organizer },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "buy", type: "limit", priceInCents: 1500, quantity: 2 },
+      cookies: { session: fan },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "sell", type: "limit", priceInCents: 1200, quantity: 1 },
+      cookies: { session: fan },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/events/${event.id}/report`,
+      cookies: { session: organizer },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const tier = response.json().tiers[0];
+    expect(tier).toMatchObject({
+      issued: 6,
+      withOrganizer: 4,
+      withFans: 2,
+      passedOn: 0,
+      holders: 2,
+      forSale: 1,
+      waiting: 0,
+    });
+    expect(tier.recentTrades).toHaveLength(1);
+    expect(tier.recentTrades[0].quantity).toBe(2);
+  });
+
+  it("counts a ticket that has been passed on a second time", async () => {
+    const { event } = (await createEvent()).json();
+    await issue(event.id, 4);
+    const symbol = `${event.id}:GA`;
+
+    const sell = (session: string, price: number, quantity: number) =>
+      app.inject({
+        method: "POST",
+        url: "/orders",
+        payload: { symbol, side: "sell", type: "limit", priceInCents: price, quantity },
+        cookies: { session },
+      });
+    const buy = (session: string, price: number, quantity: number) =>
+      app.inject({
+        method: "POST",
+        url: "/orders",
+        payload: { symbol, side: "buy", type: "limit", priceInCents: price, quantity },
+        cookies: { session },
+      });
+
+    await sell(organizer, 1500, 1);
+    await buy(fan, 1500, 1);
+    await sell(fan, 1500, 1);
+    await buy(rival, 1500, 1);
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/events/${event.id}/report`,
+      cookies: { session: organizer },
+    });
+
+    expect(response.json().tiers[0]).toMatchObject({
+      withOrganizer: 3,
+      withFans: 1,
+      passedOn: 1,
+    });
+  });
+
+  it("refuses to report on somebody else's event", async () => {
+    const { event } = (await createEvent()).json();
+
+    const rivalView = await app.inject({
+      method: "GET",
+      url: `/events/${event.id}/report`,
+      cookies: { session: rival },
+    });
+    const fanView = await app.inject({
+      method: "GET",
+      url: `/events/${event.id}/report`,
+      cookies: { session: fan },
+    });
+
+    expect(rivalView.statusCode).toBe(403);
+    expect(fanView.statusCode).toBe(403);
+  });
+
   it("gives each new event its own id", async () => {
     const first = (await createEvent()).json().event.id;
     const second = (await createEvent()).json().event.id;

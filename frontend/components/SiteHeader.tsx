@@ -15,6 +15,8 @@ const LINKS = [
   { href: "/tickets", label: "My tickets" },
 ];
 
+const ORGANIZER_LINK = { href: "/organize", label: "Organize" };
+
 export function SiteHeader({ user, loading, onSignOut }: Props) {
   const pathname = usePathname();
 
@@ -26,7 +28,7 @@ export function SiteHeader({ user, loading, onSignOut }: Props) {
             Face <span className="italic text-accent">Value</span>
           </Link>
           <nav className="flex gap-6">
-            {LINKS.map((link) => (
+            {(user?.role === "organizer" ? [...LINKS, ORGANIZER_LINK] : LINKS).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}

@@ -61,6 +61,54 @@ export function registerEventRoutes(
     return { tickets };
   });
 
+  app.get("/events/:eventId/report", async (request, reply) => {
+    const { eventId } = request.params as { eventId: string };
+    const event = ownedEvent(request, reply, state, eventId);
+    if (!event) {
+      return reply;
+    }
+
+    return {
+      event: view(event),
+      tiers: event.tiers.map((tier) => {
+        const symbol = symbolFor(event.id, tier.tierId);
+        const tickets = state.tickets.forSymbol(symbol);
+        const holders = new Set<string>();
+        let withOrganizer = 0;
+        let passedOn = 0;
+
+        for (const ticket of tickets) {
+          holders.add(ticket.holderId);
+          if (ticket.holderId === event.organizerId) {
+            withOrganizer += 1;
+          }
+          if (ticket.rotation >= 2) {
+            passedOn += 1;
+          }
+        }
+
+        return {
+          tierId: tier.tierId,
+          name: tier.name,
+          symbol,
+          faceValueInCents: tier.faceValueInCents,
+          issued: tickets.length,
+          withOrganizer,
+          withFans: tickets.length - withOrganizer,
+          passedOn,
+          holders: holders.size,
+          forSale: state.restingQuantity(symbol, "sell"),
+          waiting: state.restingQuantity(symbol, "buy"),
+          recentTrades: state.recentTrades(symbol, 8).map((trade) => ({
+            priceInCents: trade.priceInCents,
+            quantity: trade.quantity,
+            executedAt: trade.executedAt,
+          })),
+        };
+      }),
+    };
+  });
+
   app.post("/events", { schema: createEventSchema }, async (request, reply) => {
     const user = requireRole(request, "organizer");
     const body = request.body as CreateEventBody;

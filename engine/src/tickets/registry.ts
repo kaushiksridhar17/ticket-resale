@@ -3,6 +3,7 @@ import { TicketError, type Ticket } from "./types.js";
 export class TicketRegistry {
   private tickets = new Map<string, Ticket>();
   private holdings = new Map<string, Map<string, string[]>>();
+  private bySymbol = new Map<string, Ticket[]>();
   private nextSerial = new Map<string, number>();
   private counter = 0;
 
@@ -27,6 +28,7 @@ export class TicketRegistry {
       this.tickets.set(ticket.id, ticket);
       list.push(ticket.id);
       issued.push(ticket);
+      this.index(symbol).push(ticket);
       serial += 1;
     }
 
@@ -88,6 +90,10 @@ export class TicketRegistry {
     return this.holdings.get(userId)?.get(symbol)?.length ?? 0;
   }
 
+  forSymbol(symbol: string): Ticket[] {
+    return this.bySymbol.get(symbol) ?? [];
+  }
+
   issuedCount(symbol: string): number {
     return (this.nextSerial.get(symbol) ?? 1) - 1;
   }
@@ -127,6 +133,15 @@ export class TicketRegistry {
         `${this.tickets.size - seen.size} tickets have no holder`
       );
     }
+  }
+
+  private index(symbol: string): Ticket[] {
+    let tickets = this.bySymbol.get(symbol);
+    if (!tickets) {
+      tickets = [];
+      this.bySymbol.set(symbol, tickets);
+    }
+    return tickets;
   }
 
   private listFor(userId: string, symbol: string): string[] {

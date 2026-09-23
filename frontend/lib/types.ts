@@ -90,6 +90,41 @@ export interface EventSummary {
   tiers: Tier[];
 }
 
+export interface TierReport {
+  tierId: string;
+  name: string;
+  symbol: string;
+  faceValueInCents: number;
+  issued: number;
+  withOrganizer: number;
+  withFans: number;
+  passedOn: number;
+  holders: number;
+  forSale: number;
+  waiting: number;
+  recentTrades: { priceInCents: number; quantity: number; executedAt: number }[];
+}
+
+export interface EventReport {
+  event: EventSummary;
+  tiers: TierReport[];
+}
+
+export interface NewTier {
+  tierId: string;
+  name: string;
+  faceValueInCents: number;
+  perPersonLimit: number;
+}
+
+export interface NewEvent {
+  name: string;
+  venue: string;
+  startsAt: number;
+  salesCloseAt: number;
+  tiers: NewTier[];
+}
+
 export interface TicketSummary {
   id: string;
   symbol: string;
