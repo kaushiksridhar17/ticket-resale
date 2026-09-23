@@ -15,9 +15,20 @@ describe("WebSocket broadcasting", () => {
   let app: FastifyInstance;
   let url: string;
   const sockets: WebSocket[] = [];
+  const codes: { email: string; code: string }[] = [];
+  const sessions = new Map<string, string>();
 
   beforeEach(async () => {
-    const built = await buildServer({ logPath: null, broadcastIntervalMs: 20 });
+    codes.length = 0;
+    sessions.clear();
+    const built = await buildServer({
+      logPath: null,
+      broadcastIntervalMs: 20,
+      authPepper: "test-pepper",
+      sendCode: (email, code) => {
+        codes.push({ email, code });
+      },
+    });
     app = built.app;
     await app.listen({ port: 0, host: "127.0.0.1" });
 
@@ -69,8 +80,33 @@ describe("WebSocket broadcasting", () => {
     });
   }
 
+  async function sessionFor(userId: string): Promise<string> {
+    const existing = sessions.get(userId);
+    if (existing) {
+      return existing;
+    }
+    const email = `${userId}@example.com`;
+    await app.inject({ method: "POST", url: "/auth/request", payload: { email } });
+    const code = codes[codes.length - 1]!.code;
+    const verified = await app.inject({
+      method: "POST",
+      url: "/auth/verify",
+      payload: { email, code },
+    });
+    const token = verified.cookies.find((entry) => entry.name === "session")!.value;
+    sessions.set(userId, token);
+    return token;
+  }
+
   async function placeOrder(body: Record<string, unknown>) {
-    return app.inject({ method: "POST", url: "/orders", payload: body });
+    const { userId, ...rest } = body as { userId: string } & Record<string, unknown>;
+    const session = await sessionFor(userId);
+    return app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: rest,
+      cookies: { session },
+    });
   }
 
   it("sends a book snapshot on subscribe", async () => {
@@ -250,7 +286,12 @@ describe("WebSocket broadcasting", () => {
   });
 
   it("drops a client cleanly on disconnect", async () => {
-    const built = await buildServer({ logPath: null, broadcastIntervalMs: 20 });
+    const built = await buildServer({
+      logPath: null,
+      broadcastIntervalMs: 20,
+      authPepper: "test-pepper",
+      sendCode: () => undefined,
+    });
     await built.app.listen({ port: 0, host: "127.0.0.1" });
 
     const address = built.app.server.address();

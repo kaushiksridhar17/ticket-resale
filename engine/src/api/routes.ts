@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { OrderRejected } from "../exchange.js";
 import { placeOrderSchema, type PlaceOrderBody } from "./schemas.js";
+import { requireUser } from "../auth/plugin.js";
 import type { ExchangeState } from "../exchangeState.js";
 import type { Order, Trade } from "../types.js";
 
@@ -33,11 +34,11 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     return { trades: state.recentTrades(symbol) };
   });
 
-  app.get("/account/:userId", async (request) => {
-    const { userId } = request.params as { userId: string };
-    state.ensureAccount(userId);
+  app.get("/account", async (request) => {
+    const user = requireUser(request);
+    state.ensureAccount(user.id);
 
-    const account = state.exchange.accounts.get(userId);
+    const account = state.exchange.accounts.get(user.id);
     const positions = state.symbols().map((symbol) => ({
       symbol,
       total: account.positions.get(symbol)?.total ?? 0,
@@ -45,14 +46,15 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     }));
 
     return {
-      userId,
+      userId: user.id,
       cash: { total: account.cash.total, locked: account.cash.locked },
       positions,
-      orders: state.ordersFor(userId).slice(-50).reverse(),
+      orders: state.ordersFor(user.id).slice(-50).reverse(),
     };
   });
 
   app.post("/orders", { schema: placeOrderSchema }, async (request, reply) => {
+    const user = requireUser(request);
     const body = request.body as PlaceOrderBody;
 
     if (!state.isValidSymbol(body.symbol)) {
@@ -67,11 +69,11 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         .send({ error: "Market orders must not include priceInCents" });
     }
 
-    state.ensureAccount(body.userId);
+    state.ensureAccount(user.id);
 
     const order: Order = {
       id: state.nextOrderId(),
-      userId: body.userId,
+      userId: user.id,
       symbol: body.symbol,
       side: body.side,
       type: body.type,
@@ -108,11 +110,15 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   });
 
   app.delete("/orders/:orderId", async (request, reply) => {
+    const user = requireUser(request);
     const { orderId } = request.params as { orderId: string };
     const existing = state.getOrder(orderId);
 
     if (!existing) {
       return reply.code(404).send({ error: `Unknown order ${orderId}` });
+    }
+    if (existing.userId !== user.id) {
+      return reply.code(403).send({ error: "That order is not yours" });
     }
 
     const cancelled = state.cancelOrder(existing.symbol, orderId);

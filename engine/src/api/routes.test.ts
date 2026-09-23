@@ -4,22 +4,55 @@ import type { FastifyInstance } from "fastify";
 
 describe("HTTP API", () => {
   let app: FastifyInstance;
+  let codes: { email: string; code: string }[];
+  let alice: string;
+  let bob: string;
 
   beforeEach(async () => {
-    const built = await buildServer({ logPath: null });
+    codes = [];
+    const built = await buildServer({
+      logPath: null,
+      authPepper: "test-pepper",
+      sendCode: (email, code) => {
+        codes.push({ email, code });
+      },
+    });
     app = built.app;
     await app.ready();
+
+    alice = await signIn("alice@example.com");
+    bob = await signIn("bob@example.com");
   });
 
   afterEach(async () => {
     await app.close();
   });
 
-  async function placeOrder(body: Record<string, unknown>) {
-    return app.inject({ method: "POST", url: "/orders", payload: body });
+  async function signIn(email: string): Promise<string> {
+    await app.inject({
+      method: "POST",
+      url: "/auth/request",
+      payload: { email },
+    });
+    const code = codes[codes.length - 1]!.code;
+    const response = await app.inject({
+      method: "POST",
+      url: "/auth/verify",
+      payload: { email, code },
+    });
+    return response.cookies.find((entry) => entry.name === "session")!.value;
   }
 
-  it("reports health", async () => {
+  async function placeOrder(session: string, body: Record<string, unknown>) {
+    return app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: body,
+      cookies: { session },
+    });
+  }
+
+  it("reports health without a session", async () => {
     const response = await app.inject({ method: "GET", url: "/health" });
 
     expect(response.statusCode).toBe(200);
@@ -45,17 +78,63 @@ describe("HTTP API", () => {
     expect(response.statusCode).toBe(404);
   });
 
-  it("creates an account on first contact", async () => {
-    const response = await app.inject({ method: "GET", url: "/account/alice" });
+  it("refuses to show an account without a session", async () => {
+    const response = await app.inject({ method: "GET", url: "/account" });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("creates the account on first look", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/account",
+      cookies: { session: alice },
+    });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().cash.total).toBeGreaterThan(0);
     expect(response.json().positions.length).toBeGreaterThan(0);
   });
 
+  it("refuses to place an order without a session", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: {
+        symbol: "ACME",
+        side: "sell",
+        type: "limit",
+        priceInCents: 5050,
+        quantity: 100,
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("ignores a userId in the body and uses the session", async () => {
+    const placed = await placeOrder(alice, {
+      userId: "somebody_else",
+      symbol: "ACME",
+      side: "sell",
+      type: "limit",
+      priceInCents: 5050,
+      quantity: 100,
+    });
+
+    expect(placed.statusCode).toBe(201);
+
+    const account = await app.inject({
+      method: "GET",
+      url: "/account",
+      cookies: { session: alice },
+    });
+    expect(account.json().orders).toHaveLength(1);
+    expect(placed.json().order.userId).toBe(account.json().userId);
+  });
+
   it("rests a limit order and shows it in the book", async () => {
-    const response = await placeOrder({
-      userId: "alice",
+    const response = await placeOrder(alice, {
       symbol: "ACME",
       side: "sell",
       type: "limit",
@@ -74,8 +153,7 @@ describe("HTTP API", () => {
   });
 
   it("executes at the resting price, not the incoming price", async () => {
-    await placeOrder({
-      userId: "alice",
+    await placeOrder(alice, {
       symbol: "ACME",
       side: "sell",
       type: "limit",
@@ -83,8 +161,7 @@ describe("HTTP API", () => {
       quantity: 100,
     });
 
-    const response = await placeOrder({
-      userId: "bob",
+    const response = await placeOrder(bob, {
       symbol: "ACME",
       side: "buy",
       type: "limit",
@@ -98,16 +175,14 @@ describe("HTTP API", () => {
   });
 
   it("settles balances through the API", async () => {
-    await placeOrder({
-      userId: "alice",
+    await placeOrder(alice, {
       symbol: "ACME",
       side: "sell",
       type: "limit",
       priceInCents: 5050,
       quantity: 100,
     });
-    await placeOrder({
-      userId: "bob",
+    await placeOrder(bob, {
       symbol: "ACME",
       side: "buy",
       type: "limit",
@@ -115,18 +190,21 @@ describe("HTTP API", () => {
       quantity: 60,
     });
 
-    const bob = await app.inject({ method: "GET", url: "/account/bob" });
-    const position = bob
+    const account = await app.inject({
+      method: "GET",
+      url: "/account",
+      cookies: { session: bob },
+    });
+    const position = account
       .json()
       .positions.find((p: { symbol: string }) => p.symbol === "ACME");
 
     expect(position.total).toBe(1060);
-    expect(bob.json().cash.locked).toBe(0);
+    expect(account.json().cash.locked).toBe(0);
   });
 
   it("rejects a malformed body", async () => {
-    const response = await placeOrder({
-      userId: "alice",
+    const response = await placeOrder(alice, {
       symbol: "ACME",
       side: "sideways",
       type: "limit",
@@ -138,8 +216,7 @@ describe("HTTP API", () => {
   });
 
   it("rejects a limit order with no price", async () => {
-    const response = await placeOrder({
-      userId: "alice",
+    const response = await placeOrder(alice, {
       symbol: "ACME",
       side: "buy",
       type: "limit",
@@ -150,8 +227,7 @@ describe("HTTP API", () => {
   });
 
   it("rejects a market order that carries a price", async () => {
-    const response = await placeOrder({
-      userId: "alice",
+    const response = await placeOrder(alice, {
       symbol: "ACME",
       side: "buy",
       type: "market",
@@ -163,8 +239,7 @@ describe("HTTP API", () => {
   });
 
   it("returns 422 when the exchange refuses the order", async () => {
-    const response = await placeOrder({
-      userId: "carol",
+    const response = await placeOrder(alice, {
       symbol: "ACME",
       side: "buy",
       type: "limit",
@@ -177,8 +252,7 @@ describe("HTTP API", () => {
   });
 
   it("cancels a resting order and frees the funds", async () => {
-    const placed = await placeOrder({
-      userId: "alice",
+    const placed = await placeOrder(alice, {
       symbol: "ACME",
       side: "buy",
       type: "limit",
@@ -187,42 +261,88 @@ describe("HTTP API", () => {
     });
     const orderId = placed.json().order.id;
 
-    const before = await app.inject({ method: "GET", url: "/account/alice" });
+    const before = await app.inject({
+      method: "GET",
+      url: "/account",
+      cookies: { session: alice },
+    });
     expect(before.json().cash.locked).toBe(50_000);
 
     const cancelled = await app.inject({
       method: "DELETE",
       url: `/orders/${orderId}`,
+      cookies: { session: alice },
     });
 
     expect(cancelled.statusCode).toBe(200);
     expect(cancelled.json().order.status).toBe("cancelled");
 
-    const after = await app.inject({ method: "GET", url: "/account/alice" });
+    const after = await app.inject({
+      method: "GET",
+      url: "/account",
+      cookies: { session: alice },
+    });
     expect(after.json().cash.locked).toBe(0);
-    expect(after.json().positions.length).toBeGreaterThan(0);
+  });
+
+  it("refuses to cancel an order belonging to somebody else", async () => {
+    const placed = await placeOrder(alice, {
+      symbol: "ACME",
+      side: "buy",
+      type: "limit",
+      priceInCents: 5000,
+      quantity: 10,
+    });
+    const orderId = placed.json().order.id;
+
+    const response = await app.inject({
+      method: "DELETE",
+      url: `/orders/${orderId}`,
+      cookies: { session: bob },
+    });
+
+    expect(response.statusCode).toBe(403);
+
+    const book = await app.inject({ method: "GET", url: "/book/ACME" });
+    expect(book.json().bids[0]?.totalQuantity).toBe(10);
+  });
+
+  it("refuses to cancel without a session", async () => {
+    const placed = await placeOrder(alice, {
+      symbol: "ACME",
+      side: "buy",
+      type: "limit",
+      priceInCents: 5000,
+      quantity: 10,
+    });
+
+    const response = await app.inject({
+      method: "DELETE",
+      url: `/orders/${placed.json().order.id}`,
+    });
+
+    expect(response.statusCode).toBe(401);
   });
 
   it("returns 404 when cancelling an unknown order", async () => {
     const response = await app.inject({
       method: "DELETE",
       url: "/orders/ord_does_not_exist",
+      cookies: { session: alice },
     });
 
     expect(response.statusCode).toBe(404);
   });
 
   it("returns 409 when cancelling an order that already filled", async () => {
-    await placeOrder({
-      userId: "alice",
+    await placeOrder(alice, {
       symbol: "ACME",
       side: "sell",
       type: "limit",
       priceInCents: 5050,
       quantity: 10,
     });
-    const filled = await placeOrder({
-      userId: "bob",
+    const filled = await placeOrder(bob, {
       symbol: "ACME",
       side: "buy",
       type: "limit",
@@ -233,22 +353,21 @@ describe("HTTP API", () => {
     const response = await app.inject({
       method: "DELETE",
       url: `/orders/${filled.json().order.id}`,
+      cookies: { session: bob },
     });
 
     expect(response.statusCode).toBe(409);
   });
 
   it("records executed trades for the symbol", async () => {
-    await placeOrder({
-      userId: "alice",
+    await placeOrder(alice, {
       symbol: "ACME",
       side: "sell",
       type: "limit",
       priceInCents: 5050,
       quantity: 100,
     });
-    await placeOrder({
-      userId: "bob",
+    await placeOrder(bob, {
       symbol: "ACME",
       side: "buy",
       type: "limit",
@@ -263,8 +382,7 @@ describe("HTTP API", () => {
   });
 
   it("keeps symbols independent", async () => {
-    await placeOrder({
-      userId: "alice",
+    await placeOrder(alice, {
       symbol: "ACME",
       side: "sell",
       type: "limit",
