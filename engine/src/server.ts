@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyError } from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import { registerRoutes } from "./api/routes.js";
@@ -9,6 +9,12 @@ import { ExchangeState } from "./exchangeState.js";
 import { connectDatabase, type Database } from "./db/database.js";
 import { PostgresSink, readLastLogSeq } from "./db/postgresSink.js";
 import { PersistenceWriter } from "./db/writer.js";
+import { AuthService } from "./auth/service.js";
+import { MemoryAuthStore } from "./auth/memoryStore.js";
+import { PostgresAuthStore } from "./auth/postgresStore.js";
+import { consoleMailer, type SendCode } from "./auth/mailer.js";
+import { registerAuthPlugin, NotAllowed, NotAuthenticated } from "./auth/plugin.js";
+import { registerAuthRoutes } from "./auth/routes.js";
 import type { Trade } from "./types.js";
 
 export interface ServerOptions {
@@ -16,6 +22,8 @@ export interface ServerOptions {
   logger?: boolean;
   broadcastIntervalMs?: number;
   databaseUrl?: string | null;
+  authPepper?: string;
+  sendCode?: SendCode;
 }
 
 export async function buildServer(options: ServerOptions = {}) {
@@ -43,19 +51,43 @@ export async function buildServer(options: ServerOptions = {}) {
     );
   }
 
+  const authStore = database
+    ? new PostgresAuthStore(database)
+    : new MemoryAuthStore();
+  const auth = new AuthService(authStore, {
+    pepper: options.authPepper ?? process.env.AUTH_PEPPER ?? "development-pepper",
+    sendCode: options.sendCode ?? consoleMailer(),
+  });
+
   const broadcaster = new Broadcaster(state, options.broadcastIntervalMs ?? 100);
   const app = Fastify({ logger: options.logger ?? false });
 
   await app.register(cors, {
     origin: true,
+    credentials: true,
     methods: ["GET", "POST", "DELETE", "OPTIONS"],
   });
   await app.register(websocket);
+  await registerAuthPlugin(app, auth);
+
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    if (error instanceof NotAuthenticated) {
+      return reply.code(401).send({ error: error.message });
+    }
+    if (error instanceof NotAllowed) {
+      return reply.code(403).send({ error: error.message });
+    }
+    request.log.error(error);
+    return reply.code(error.statusCode ?? 500).send({
+      error: error.statusCode ? error.message : "Something went wrong",
+    });
+  });
 
   const onChange = (symbol: string) => broadcaster.markDirty(symbol);
   const onTrades = (symbol: string, trades: Trade[]) =>
     broadcaster.publishTrades(symbol, trades);
 
+  registerAuthRoutes(app, auth);
   registerRoutes(app, { state, onOrderChange: onChange, onTrades });
   registerHistoryRoutes(app, { state, database });
   registerWebSocket(app, broadcaster);
@@ -67,5 +99,5 @@ export async function buildServer(options: ServerOptions = {}) {
     await database?.end();
   });
 
-  return { app, state, broadcaster, database, writer };
+  return { app, state, broadcaster, database, writer, auth };
 }

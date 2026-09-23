@@ -4,11 +4,18 @@ const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "0.0.0.0";
 const LOGGER = process.env.LOGGER !== "false";
 const DATABASE_URL = process.env.DATABASE_URL ?? null;
+const AUTH_PEPPER = process.env.AUTH_PEPPER ?? null;
 
 async function main() {
+  if (!AUTH_PEPPER && process.env.NODE_ENV === "production") {
+    console.error("AUTH_PEPPER must be set in production");
+    process.exit(1);
+  }
+
   const { app, state, database } = await buildServer({
     logger: LOGGER,
     databaseUrl: DATABASE_URL,
+    ...(AUTH_PEPPER ? { authPepper: AUTH_PEPPER } : {}),
   });
 
   try {
