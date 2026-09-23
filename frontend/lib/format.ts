@@ -20,6 +20,28 @@ export function formatQuantity(quantity: number): string {
   return quantity.toLocaleString();
 }
 
+export function formatPrice(cents: number): string {
+  return cents === 0 ? "Free" : `$${centsToDollars(cents)}`;
+}
+
+export function formatDate(epochMs: number): string {
+  return new Date(epochMs).toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export function formatDateTime(epochMs: number): string {
+  return new Date(epochMs).toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function formatTime(epochMs: number): string {
   return new Date(epochMs).toLocaleTimeString([], {
     hour: "2-digit",

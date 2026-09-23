@@ -91,6 +91,7 @@ describe("event and ticket routes", () => {
     const { event } = response.json();
     expect(event.id).toMatch(/^evt_\d+$/);
     expect(event.status).toBe("on_sale");
+    expect(event.resaleOpen).toBe(true);
     expect(event.tiers[0].symbol).toBe(`${event.id}:GA`);
     expect(event.tiers[0].issued).toBe(0);
 
@@ -312,6 +313,7 @@ describe("event and ticket routes", () => {
     });
 
     expect(closed.json().event.status).toBe("closed");
+    expect(closed.json().event.resaleOpen).toBe(false);
     expect(closed.json().event.tiers[0].forSale).toBe(0);
 
     const late = await app.inject({

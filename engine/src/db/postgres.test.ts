@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { connectDatabase, type Database } from "./database.js";
 import { PostgresSink, readLastLogSeq } from "./postgresSink.js";
-import { candles, orderHistory, tradeHistory } from "./queries.js";
+import { orderHistory, tradeHistory } from "./queries.js";
 import { PersistenceWriter, type PersistenceBatch } from "./writer.js";
 import { ExchangeState } from "../exchangeState.js";
 import { DEMO_EVENT_ID, DEMO_SYMBOL, DEMO_TIER_ID, demoEvent, seedEvent } from "../testEvent.js";
@@ -187,42 +187,6 @@ describe.skipIf(!url)("postgres integration", () => {
     const history = await orderHistory(db, "alice", 10, null);
 
     expect(history.map((o) => o.id)).toEqual(["ord_3", "ord_1"]);
-  });
-
-  it("builds candles from trades, using sequence to break ties", async () => {
-    const sink = new PostgresSink(db);
-    await sink.write(fullBatch({
-      trades: [
-        trade(1, { priceInCents: 5000, quantity: 1, executedAt: BASE_MS + 500 }),
-        trade(2, { priceInCents: 5100, quantity: 2, executedAt: BASE_MS + 1000 }),
-        trade(3, { priceInCents: 4900, quantity: 3, executedAt: BASE_MS + 3000 }),
-        trade(5, { priceInCents: 4950, quantity: 5, executedAt: BASE_MS + 3000 }),
-        trade(4, { priceInCents: 5050, quantity: 4, executedAt: BASE_MS + 6000 }),
-      ],
-      orders: [],
-      lastLogSeq: 1,
-    }));
-
-    const result = await candles(db, "ACME", 5, 10);
-
-    expect(result).toEqual([
-      {
-        time: BASE_MS / 1000,
-        open: 5000,
-        high: 5100,
-        low: 4900,
-        close: 4950,
-        volume: 11,
-      },
-      {
-        time: BASE_MS / 1000 + 5,
-        open: 5050,
-        high: 5050,
-        low: 5050,
-        close: 5050,
-        volume: 4,
-      },
-    ]);
   });
 
   it("writes an event with its tiers", async () => {

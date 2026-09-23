@@ -22,8 +22,10 @@ export function registerEventRoutes(
   const { state } = deps;
   const now = deps.now ?? (() => Date.now());
 
+  const view = (event: EventDefinition) => eventView(state, event, now());
+
   app.get("/events", async () => ({
-    events: state.events.list().map((event) => eventView(state, event)),
+    events: state.events.list().map(view),
   }));
 
   app.get("/events/:eventId", async (request, reply) => {
@@ -32,7 +34,7 @@ export function registerEventRoutes(
     if (!event) {
       return reply.code(404).send({ error: `Unknown event ${eventId}` });
     }
-    return { event: eventView(state, event) };
+    return { event: view(event) };
   });
 
   app.get("/tickets", async (request) => {
@@ -87,7 +89,7 @@ export function registerEventRoutes(
 
     state.createEvent(event);
 
-    return reply.code(201).send({ event: eventView(state, event) });
+    return reply.code(201).send({ event: view(event) });
   });
 
   app.post(
@@ -115,7 +117,7 @@ export function registerEventRoutes(
         return reply.code(201).send({
           symbol: symbolFor(eventId, body.tierId),
           issued,
-          event: eventView(state, event),
+          event: view(event),
         });
       } catch (error) {
         if (error instanceof OrderRejected) {
@@ -137,7 +139,7 @@ export function registerEventRoutes(
     }
 
     state.closeSales(eventId);
-    return { event: eventView(state, event) };
+    return { event: view(event) };
   });
 
   app.post("/events/:eventId/cancel", async (request, reply) => {
@@ -148,7 +150,7 @@ export function registerEventRoutes(
     }
 
     state.cancelEvent(eventId);
-    return { event: eventView(state, event) };
+    return { event: view(event) };
   });
 }
 
@@ -192,7 +194,11 @@ function validateEvent(body: CreateEventBody, currentTime: number): string | nul
   return null;
 }
 
-function eventView(state: ExchangeState, event: EventDefinition) {
+function eventView(
+  state: ExchangeState,
+  event: EventDefinition,
+  currentTime: number
+) {
   return {
     id: event.id,
     organizerId: event.organizerId,
@@ -202,6 +208,7 @@ function eventView(state: ExchangeState, event: EventDefinition) {
     salesCloseAt: event.salesCloseAt,
     paymentMode: event.paymentMode,
     status: event.status,
+    resaleOpen: event.status === "on_sale" && currentTime < event.salesCloseAt,
     tiers: event.tiers.map((tier) => {
       const symbol = symbolFor(event.id, tier.tierId);
       return {

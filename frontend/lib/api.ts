@@ -1,11 +1,12 @@
 import type {
   AccountSummary,
+  EventSummary,
   Order,
   OrderBookSnapshot,
+  TicketSummary,
   Trade,
   User,
 } from "./types";
-import type { ServerCandle } from "./candles";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -100,22 +101,16 @@ export function fetchAccount(): Promise<AccountSummary> {
   return request("/account");
 }
 
-export async function fetchCandles(
-  symbol: string,
-  intervalSeconds: number,
-  limit: number
-): Promise<ServerCandle[] | null> {
-  try {
-    const result = await request<{ candles: ServerCandle[] }>(
-      `/candles/${symbol}?interval=${intervalSeconds}&limit=${limit}`
-    );
-    return result.candles;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 503) {
-      return null;
-    }
-    throw error;
-  }
+export function fetchEvents(): Promise<{ events: EventSummary[] }> {
+  return request("/events");
+}
+
+export function fetchEvent(eventId: string): Promise<{ event: EventSummary }> {
+  return request(`/events/${eventId}`);
+}
+
+export function fetchTickets(): Promise<{ tickets: TicketSummary[] }> {
+  return request("/tickets");
 }
 
 export interface PlaceOrderInput {

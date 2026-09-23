@@ -1,9 +1,8 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { Database } from "../db/database.js";
 import type { ExchangeState } from "../exchangeState.js";
-import { candles, orderHistory, tradeHistory } from "../db/queries.js";
-
-export const CANDLE_INTERVALS = [5, 15, 60, 300];
+import { orderHistory, tradeHistory } from "../db/queries.js";
+import { requireUser } from "../auth/plugin.js";
 
 export interface HistoryDeps {
   state: ExchangeState;
@@ -16,16 +15,6 @@ const pageSchema = {
     properties: {
       before: { type: "integer", minimum: 1 },
       limit: { type: "integer", minimum: 1, maximum: 500 },
-    },
-  },
-} as const;
-
-const candleSchema = {
-  querystring: {
-    type: "object",
-    properties: {
-      interval: { type: "integer", enum: CANDLE_INTERVALS },
-      limit: { type: "integer", minimum: 1, maximum: 1000 },
     },
   },
 } as const;
@@ -69,55 +58,23 @@ export function registerHistoryRoutes(
     }
   );
 
-  app.get(
-    "/history/orders/:userId",
-    { schema: pageSchema },
-    async (request, reply) => {
-      const { userId } = request.params as { userId: string };
-      const { before, limit = 100 } = request.query as {
-        before?: number;
-        limit?: number;
-      };
+  app.get("/history/orders", { schema: pageSchema }, async (request, reply) => {
+    const user = requireUser(request);
+    const { before, limit = 100 } = request.query as {
+      before?: number;
+      limit?: number;
+    };
 
-      if (userId.length === 0 || userId.length > 40) {
-        return reply.code(400).send({ error: "Invalid user id" });
-      }
-      if (!database) {
-        return unavailable(reply);
-      }
-
-      const orders = await orderHistory(database, userId, limit, before ?? null);
-      const last = orders[orders.length - 1];
-
-      return {
-        orders,
-        nextBefore: orders.length === limit && last ? last.sequence : null,
-      };
+    if (!database) {
+      return unavailable(reply);
     }
-  );
 
-  app.get(
-    "/candles/:symbol",
-    { schema: candleSchema },
-    async (request, reply) => {
-      const { symbol } = request.params as { symbol: string };
-      const { interval = 5, limit = 300 } = request.query as {
-        interval?: number;
-        limit?: number;
-      };
+    const orders = await orderHistory(database, user.id, limit, before ?? null);
+    const last = orders[orders.length - 1];
 
-      if (!state.isValidSymbol(symbol)) {
-        return reply.code(404).send({ error: `Unknown symbol ${symbol}` });
-      }
-      if (!database) {
-        return unavailable(reply);
-      }
-
-      return {
-        symbol,
-        interval,
-        candles: await candles(database, symbol, interval, limit),
-      };
-    }
-  );
+    return {
+      orders,
+      nextBefore: orders.length === limit && last ? last.sequence : null,
+    };
+  });
 }

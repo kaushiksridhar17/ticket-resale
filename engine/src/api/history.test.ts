@@ -5,12 +5,33 @@ import { DEMO_SYMBOL, seedEvent } from "../testEvent.js";
 
 describe("history routes without a database", () => {
   let app: FastifyInstance;
+  let codes: { email: string; code: string }[];
+  let session: string;
 
   beforeEach(async () => {
-    const built = await buildServer({ logPath: null });
+    codes = [];
+    const built = await buildServer({
+      logPath: null,
+      authPepper: "test-pepper",
+      sendCode: (email, code) => {
+        codes.push({ email, code });
+      },
+    });
     app = built.app;
     seedEvent(built.state);
     await app.ready();
+
+    await app.inject({
+      method: "POST",
+      url: "/auth/request",
+      payload: { email: "alice@example.com" },
+    });
+    const verified = await app.inject({
+      method: "POST",
+      url: "/auth/verify",
+      payload: { email: "alice@example.com", code: codes[0]!.code },
+    });
+    session = verified.cookies.find((entry) => entry.name === "session")!.value;
   });
 
   afterEach(async () => {
@@ -29,33 +50,26 @@ describe("history routes without a database", () => {
   it("reports order history as unavailable", async () => {
     const response = await app.inject({
       method: "GET",
-      url: "/history/orders/alice",
+      url: "/history/orders",
+      cookies: { session },
     });
 
     expect(response.statusCode).toBe(503);
   });
 
-  it("reports candles as unavailable", async () => {
-    const response = await app.inject({ method: "GET", url: `/candles/${DEMO_SYMBOL}` });
+  it("refuses order history without a session", async () => {
+    const response = await app.inject({ method: "GET", url: "/history/orders" });
 
-    expect(response.statusCode).toBe(503);
+    expect(response.statusCode).toBe(401);
   });
 
   it("rejects an unknown symbol before checking the database", async () => {
-    const trades = await app.inject({ method: "GET", url: "/history/trades/NOPE" });
-    const bars = await app.inject({ method: "GET", url: "/candles/NOPE" });
-
-    expect(trades.statusCode).toBe(404);
-    expect(bars.statusCode).toBe(404);
-  });
-
-  it("rejects an unsupported candle interval", async () => {
     const response = await app.inject({
       method: "GET",
-      url: `/candles/${DEMO_SYMBOL}?interval=7`,
+      url: "/history/trades/NOPE",
     });
 
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(404);
   });
 
   it("rejects a page size above the limit", async () => {

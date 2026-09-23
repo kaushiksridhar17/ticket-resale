@@ -1,15 +1,6 @@
 import type { Database } from "./database.js";
 import type { Order, Side, OrderStatus, OrderType, Trade } from "../types.js";
 
-export interface Candle {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
-
 interface TradeRow {
   id: string;
   symbol: string;
@@ -36,15 +27,6 @@ interface OrderRow {
   status: OrderStatus;
   sequence: string;
   created_at: Date;
-}
-
-interface CandleRow {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: string;
 }
 
 export async function tradeHistory(
@@ -83,52 +65,6 @@ export async function orderHistory(
     [userId, before, limit]
   );
   return result.rows.map(toOrder);
-}
-
-export async function candles(
-  db: Database,
-  symbol: string,
-  intervalSeconds: number,
-  limit: number
-): Promise<Candle[]> {
-  const result = await db.query<CandleRow>(
-    `WITH latest AS (
-       SELECT max(executed_at) AS at FROM trades WHERE symbol = $1
-     ),
-     binned AS (
-       SELECT date_bin(
-                make_interval(secs => $2::double precision),
-                t.executed_at,
-                TIMESTAMPTZ '2000-01-01 00:00:00+00'
-              ) AS bucket,
-              t.price_cents,
-              t.quantity,
-              t.sequence
-         FROM trades t, latest
-        WHERE t.symbol = $1
-          AND t.executed_at > latest.at
-              - make_interval(secs => $2::double precision * $3::integer)
-     )
-     SELECT extract(epoch FROM bucket)::bigint AS time,
-            (array_agg(price_cents ORDER BY sequence))[1] AS open,
-            max(price_cents) AS high,
-            min(price_cents) AS low,
-            (array_agg(price_cents ORDER BY sequence DESC))[1] AS close,
-            sum(quantity) AS volume
-       FROM binned
-      GROUP BY bucket
-      ORDER BY bucket`,
-    [symbol, intervalSeconds, limit]
-  );
-
-  return result.rows.map((row) => ({
-    time: Number(row.time),
-    open: row.open,
-    high: row.high,
-    low: row.low,
-    close: row.close,
-    volume: Number(row.volume),
-  }));
 }
 
 function toTrade(row: TradeRow): Trade {
