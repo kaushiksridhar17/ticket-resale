@@ -88,6 +88,30 @@ export interface EventSummary {
   tiers: Tier[];
 }
 
+export interface TicketPass {
+  token: string;
+  expiresAt: number;
+  serial: number;
+  symbol: string;
+  admittedAt: number | null;
+}
+
+export type ScanResult =
+  | {
+      admitted: true;
+      serial: number;
+      tierName: string | null;
+      owedInCents: number | null;
+      admittedAt: number;
+    }
+  | {
+      admitted: false;
+      reason: string;
+      message: string;
+      serial?: number;
+      admittedAt?: number;
+    };
+
 export interface TierReport {
   tierId: string;
   name: string;

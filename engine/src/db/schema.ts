@@ -74,8 +74,11 @@ CREATE TABLE IF NOT EXISTS tickets (
   serial INTEGER NOT NULL,
   holder_id TEXT NOT NULL,
   rotation INTEGER NOT NULL,
+  admitted_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admitted_at TIMESTAMPTZ;
 
 CREATE UNIQUE INDEX IF NOT EXISTS tickets_symbol_serial
   ON tickets (symbol, serial);

@@ -16,6 +16,17 @@ const LINKS = [
 ];
 
 const ORGANIZER_LINK = { href: "/organize", label: "Organize" };
+const DOOR_LINK = { href: "/door", label: "The door" };
+
+function linksFor(role: User["role"] | null) {
+  if (role === "organizer") {
+    return [...LINKS, ORGANIZER_LINK, DOOR_LINK];
+  }
+  if (role === "staff") {
+    return [...LINKS, DOOR_LINK];
+  }
+  return LINKS;
+}
 
 export function SiteHeader({ user, loading, onSignOut }: Props) {
   const pathname = usePathname();
@@ -28,7 +39,7 @@ export function SiteHeader({ user, loading, onSignOut }: Props) {
             Face <span className="italic text-accent">Value</span>
           </Link>
           <nav className="flex gap-6">
-            {(user?.role === "organizer" ? [...LINKS, ORGANIZER_LINK] : LINKS).map((link) => (
+            {linksFor(user?.role ?? null).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}

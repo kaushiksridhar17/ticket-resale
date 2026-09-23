@@ -70,8 +70,8 @@ export default function TicketsPage() {
     <div>
       <h1 className="font-display text-4xl leading-tight">What you are holding</h1>
       <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
-        Every ticket carries its own number. Pay the venue at the door. If you
-        cannot go, pass it on and it returns to the front of the queue.
+        Every ticket carries its own number. Tap one to show it at the door. If
+        you cannot go, pass it on and it returns to the front of the queue.
       </p>
 
       {groups.length === 0 ? (
@@ -112,23 +112,25 @@ export default function TicketsPage() {
 
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {group.tickets.map((ticket) => (
-                  <li
-                    key={ticket.id}
-                    className="flex items-baseline justify-between border border-rule bg-card px-4 py-3"
-                  >
-                    <span className="font-display text-2xl leading-none">
-                      No. {ticket.serial}
-                    </span>
-                    <span className="eyebrow text-right text-muted">
-                      {ticket.faceValueInCents === null
-                        ? ""
-                        : ticket.faceValueInCents === 0
-                          ? "Free"
-                          : `${formatPrice(ticket.faceValueInCents)} at the door`}
-                      {ticket.rotation > 1
-                        ? ` · ${ticket.rotation - 1} before you`
-                        : ""}
-                    </span>
+                  <li key={ticket.id}>
+                    <Link
+                      href={`/pass/${ticket.id}`}
+                      className="flex items-baseline justify-between border border-rule bg-card px-4 py-3 transition hover:border-ink"
+                    >
+                      <span className="font-display text-2xl leading-none">
+                        No. {ticket.serial}
+                      </span>
+                      <span className="eyebrow text-right text-muted">
+                        {ticket.faceValueInCents === null
+                          ? ""
+                          : ticket.faceValueInCents === 0
+                            ? "Free"
+                            : `${formatPrice(ticket.faceValueInCents)} at the door`}
+                        {ticket.rotation > 1
+                          ? ` · ${ticket.rotation - 1} before you`
+                          : ""}
+                      </span>
+                    </Link>
                   </li>
                 ))}
               </ul>

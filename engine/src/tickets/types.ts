@@ -4,6 +4,7 @@ export interface Ticket {
   serial: number;
   holderId: string;
   rotation: number;
+  admittedAt: number | null;
 }
 
 export interface TicketTransfer {

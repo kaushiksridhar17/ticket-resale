@@ -236,6 +236,13 @@ export class ExchangeState {
       .reverse();
   }
 
+  admit(ticketId: string, at: number): Ticket {
+    const ticket = this.tickets.admit(ticketId, at);
+    this.log?.append({ kind: "admit", ticketId, at });
+    this.persistence?.enqueue(this.logPosition(), { tickets: [{ ...ticket }] });
+    return ticket;
+  }
+
   ticketsHeldBy(userId: string, symbol?: string): Ticket[] {
     return this.tickets.heldBy(userId, symbol);
   }
@@ -432,6 +439,15 @@ export class ExchangeState {
         const event = this.events.setStatus(command.eventId, status);
         if (event && shouldPersist && this.persistence) {
           this.persistence.enqueue(entry.seq, { events: [event] });
+          this.requeuedCount += 1;
+        }
+        continue;
+      }
+
+      if (command.kind === "admit") {
+        const ticket = this.tickets.admit(command.ticketId, command.at);
+        if (shouldPersist && this.persistence) {
+          this.persistence.enqueue(entry.seq, { tickets: [{ ...ticket }] });
           this.requeuedCount += 1;
         }
         continue;

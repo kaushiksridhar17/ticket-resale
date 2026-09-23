@@ -3,6 +3,8 @@ import type {
   EventReport,
   EventSummary,
   NewEvent,
+  ScanResult,
+  TicketPass,
   Order,
   OrderBookSnapshot,
   TicketSummary,
@@ -113,6 +115,17 @@ export function fetchEvent(eventId: string): Promise<{ event: EventSummary }> {
 
 export function fetchTickets(): Promise<{ tickets: TicketSummary[] }> {
   return request("/tickets");
+}
+
+export function fetchPass(ticketId: string): Promise<TicketPass> {
+  return request(`/tickets/${ticketId}/pass`);
+}
+
+export function scanPass(token: string, eventId: string): Promise<ScanResult> {
+  return request("/scan", {
+    method: "POST",
+    body: JSON.stringify({ token, eventId }),
+  });
 }
 
 export function fetchReport(eventId: string): Promise<EventReport> {

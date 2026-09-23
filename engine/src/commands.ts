@@ -13,4 +13,5 @@ export type Command =
   | { kind: "closeSales"; eventId: string }
   | { kind: "cancelEvent"; eventId: string }
   | { kind: "submit"; order: Order }
+  | { kind: "admit"; ticketId: string; at: number }
   | { kind: "cancel"; symbol: string; orderId: string };

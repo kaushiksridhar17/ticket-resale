@@ -24,7 +24,9 @@ services:
       LOGGER: "true"
       DATABASE_URL: postgres://exchange:exchange@db:5432/exchange
       AUTH_PEPPER: ${AUTH_PEPPER:-development-pepper}
+      DOOR_KEY: ${DOOR_KEY:-development-door-key}
       ORGANIZER_EMAILS: ${ORGANIZER_EMAILS:-}
+      STAFF_EMAILS: ${STAFF_EMAILS:-}
     volumes:
       - engine-data:/app/data
     depends_on:

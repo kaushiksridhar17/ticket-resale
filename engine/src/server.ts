@@ -4,6 +4,8 @@ import websocket from "@fastify/websocket";
 import { registerRoutes } from "./api/routes.js";
 import { registerHistoryRoutes } from "./api/history.js";
 import { registerEventRoutes } from "./api/events.js";
+import { registerDoorRoutes } from "./door/routes.js";
+import { PassIssuer } from "./door/passes.js";
 import { registerWebSocket } from "./ws/routes.js";
 import { Broadcaster } from "./ws/broadcaster.js";
 import { ExchangeState } from "./exchangeState.js";
@@ -26,9 +28,11 @@ export interface ServerOptions {
   authPepper?: string;
   sendCode?: SendCode;
   organizerEmails?: string[];
+  staffEmails?: string[];
+  doorKey?: string;
 }
 
-function parseOrganizers(raw: string | undefined): string[] {
+function parseEmails(raw: string | undefined): string[] {
   if (!raw) {
     return [];
   }
@@ -69,8 +73,14 @@ export async function buildServer(options: ServerOptions = {}) {
   const auth = new AuthService(authStore, {
     pepper: options.authPepper ?? process.env.AUTH_PEPPER ?? "development-pepper",
     sendCode: options.sendCode ?? consoleMailer(),
-    organizerEmails: options.organizerEmails ?? parseOrganizers(process.env.ORGANIZER_EMAILS),
+    organizerEmails:
+      options.organizerEmails ?? parseEmails(process.env.ORGANIZER_EMAILS),
+    staffEmails: options.staffEmails ?? parseEmails(process.env.STAFF_EMAILS),
   });
+
+  const passes = new PassIssuer(
+    options.doorKey ?? process.env.DOOR_KEY ?? "development-door-key"
+  );
 
   const broadcaster = new Broadcaster(state, options.broadcastIntervalMs ?? 100);
   const app = Fastify({ logger: options.logger ?? false });
@@ -103,6 +113,7 @@ export async function buildServer(options: ServerOptions = {}) {
   registerAuthRoutes(app, auth);
   registerRoutes(app, { state, onOrderChange: onChange, onTrades });
   registerEventRoutes(app, { state });
+  registerDoorRoutes(app, { state, passes });
   registerHistoryRoutes(app, { state, database });
   registerWebSocket(app, broadcaster);
 

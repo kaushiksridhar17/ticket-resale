@@ -236,14 +236,52 @@ describe("AuthService", () => {
       expect(user.role).toBe("attendee");
     });
 
-    it("leaves door staff alone whoever is on the list", async () => {
-      const { user } = await signIn(auth, "door@example.com");
-      await store.setRole(user.id, "staff");
+    it("signs up a listed address as door staff", async () => {
+      const service = new AuthService(store, {
+        pepper: "test-pepper",
+        staffEmails: ["door@example.com"],
+        now: () => clock,
+        sendCode: (email, code) => {
+          sent.push({ email, code });
+        },
+      });
+
+      const { user } = await signIn(service, "door@example.com");
+
+      expect(user.role).toBe("staff");
+    });
+
+    it("puts door staff ahead of the organizer list", async () => {
+      const service = new AuthService(store, {
+        pepper: "test-pepper",
+        organizerEmails: ["door@example.com"],
+        staffEmails: ["door@example.com"],
+        now: () => clock,
+        sendCode: (email, code) => {
+          sent.push({ email, code });
+        },
+      });
+
+      const { user } = await signIn(service, "door@example.com");
+
+      expect(user.role).toBe("staff");
+    });
+
+    it("takes the badge back when an address leaves the staff list", async () => {
+      const service = new AuthService(store, {
+        pepper: "test-pepper",
+        staffEmails: ["door@example.com"],
+        now: () => clock,
+        sendCode: (email, code) => {
+          sent.push({ email, code });
+        },
+      });
+      await signIn(service, "door@example.com");
 
       clock += 60_000;
-      const again = await signIn(serviceFor(["someone@example.com"]), "door@example.com");
+      const { user } = await signIn(auth, "door@example.com");
 
-      expect(again.user.role).toBe("staff");
+      expect(user.role).toBe("attendee");
     });
   });
 });

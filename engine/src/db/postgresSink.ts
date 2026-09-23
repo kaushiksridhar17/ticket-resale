@@ -51,7 +51,14 @@ const TIER_COLUMNS = [
   "per_person_limit",
 ];
 
-const TICKET_COLUMNS = ["id", "symbol", "serial", "holder_id", "rotation"];
+const TICKET_COLUMNS = [
+  "id",
+  "symbol",
+  "serial",
+  "holder_id",
+  "rotation",
+  "admitted_at",
+];
 
 const TRANSFER_COLUMNS = [
   "ticket_id",
@@ -235,6 +242,7 @@ function ticketUpsert(tickets: Ticket[]) {
     ticket.serial,
     ticket.holderId,
     ticket.rotation,
+    ticket.admittedAt === null ? null : new Date(ticket.admittedAt),
   ]);
 
   return {
@@ -243,6 +251,7 @@ function ticketUpsert(tickets: Ticket[]) {
            ON CONFLICT (id) DO UPDATE SET
              holder_id = EXCLUDED.holder_id,
              rotation = EXCLUDED.rotation,
+             admitted_at = COALESCE(EXCLUDED.admitted_at, tickets.admitted_at),
              updated_at = now()
            WHERE EXCLUDED.rotation >= tickets.rotation`,
     values,

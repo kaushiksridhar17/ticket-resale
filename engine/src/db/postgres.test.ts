@@ -231,6 +231,7 @@ describe.skipIf(!url)("postgres integration", () => {
       serial: 1,
       holderId: "alice",
       rotation: 0,
+      admittedAt: null,
     };
 
     await sink.write(fullBatch({ tickets: [ticket], lastLogSeq: 1 }));

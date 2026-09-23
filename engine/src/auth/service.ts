@@ -20,6 +20,7 @@ export interface AuthOptions {
   pepper: string;
   sendCode: (email: string, code: string) => Promise<void> | void;
   organizerEmails?: string[];
+  staffEmails?: string[];
   now?: () => number;
   codeTtlMs?: number;
   sessionTtlMs?: number;
@@ -35,6 +36,7 @@ export function normalizeEmail(raw: string): string {
 
 export class AuthService {
   private readonly organizers: Set<string>;
+  private readonly staff: Set<string>;
   private readonly now: () => number;
   private readonly codeTtlMs: number;
   private readonly sessionTtlMs: number;
@@ -47,6 +49,9 @@ export class AuthService {
   ) {
     this.organizers = new Set(
       (options.organizerEmails ?? []).map((email) => normalizeEmail(email))
+    );
+    this.staff = new Set(
+      (options.staffEmails ?? []).map((email) => normalizeEmail(email))
     );
     this.now = options.now ?? (() => Date.now());
     this.codeTtlMs = options.codeTtlMs ?? 10 * 60 * 1000;
@@ -148,7 +153,7 @@ export class AuthService {
 
   private async syncRole(user: User): Promise<User> {
     const expected = this.roleFor(user.email);
-    if (user.role === "staff" || user.role === expected) {
+    if (user.role === expected) {
       return user;
     }
     await this.store.setRole(user.id, expected);
@@ -156,6 +161,9 @@ export class AuthService {
   }
 
   private roleFor(email: string): Role {
+    if (this.staff.has(email)) {
+      return "staff";
+    }
     return this.organizers.has(email) ? "organizer" : "attendee";
   }
 

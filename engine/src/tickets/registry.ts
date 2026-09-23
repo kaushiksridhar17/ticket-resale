@@ -24,6 +24,7 @@ export class TicketRegistry {
         serial,
         holderId,
         rotation: 0,
+        admittedAt: null,
       };
       this.tickets.set(ticket.id, ticket);
       list.push(ticket.id);
@@ -88,6 +89,15 @@ export class TicketRegistry {
 
   countHeldBy(userId: string, symbol: string): number {
     return this.holdings.get(userId)?.get(symbol)?.length ?? 0;
+  }
+
+  admit(ticketId: string, at: number): Ticket {
+    const ticket = this.tickets.get(ticketId);
+    if (!ticket) {
+      throw new TicketError(`Unknown ticket ${ticketId}`);
+    }
+    ticket.admittedAt = at;
+    return ticket;
   }
 
   forSymbol(symbol: string): Ticket[] {
