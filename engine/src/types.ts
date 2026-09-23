@@ -11,7 +11,6 @@ export interface Order {
   side: Side;
   type: OrderType;
   priceInCents: number | null;
-  maxNotionalInCents: number | null;
   quantity: number;
   remainingQuantity: number;
   status: OrderStatus;

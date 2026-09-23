@@ -4,7 +4,6 @@ export interface PlaceOrderBody {
   type: "limit" | "market";
   priceInCents?: number;
   quantity: number;
-  maxNotionalInCents?: number;
 }
 
 export const placeOrderSchema = {
@@ -17,7 +16,6 @@ export const placeOrderSchema = {
       type: { type: "string", enum: ["limit", "market"] },
       priceInCents: { type: "integer", minimum: 0 },
       quantity: { type: "integer", minimum: 1, maximum: 1_000_000 },
-      maxNotionalInCents: { type: "integer", minimum: 1 },
     },
   },
 } as const;

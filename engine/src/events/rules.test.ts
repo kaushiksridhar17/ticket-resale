@@ -54,7 +54,6 @@ describe("ticket rules", () => {
       side,
       type,
       priceInCents,
-      maxNotionalInCents: type === "market" && side === "buy" ? 100_00 : null,
       quantity,
       remainingQuantity: quantity,
       status: "open",
@@ -208,7 +207,7 @@ describe("ticket rules", () => {
     const book = state.exchange.engine.snapshot(DEMO_SYMBOL);
     expect(book.asks).toHaveLength(0);
     expect(book.bids).toHaveLength(0);
-    expect(state.exchange.accounts.get("alice").cash.locked).toBe(0);
+    expect(state.restingQuantity(DEMO_SYMBOL, "buy")).toBe(0);
   });
 
   it("stops trading and clears the book when an event is cancelled", () => {

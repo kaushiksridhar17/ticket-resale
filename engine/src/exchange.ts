@@ -1,4 +1,4 @@
-import { Accounts, InsufficientFunds } from "./accounts.js";
+import { Accounts, NothingToGive } from "./accounts.js";
 import { MatchingEngine } from "./matchingEngine.js";
 import type { FileEventLog } from "./eventLog.js";
 import type { Order, Trade } from "./types.js";
@@ -36,7 +36,7 @@ export class Exchange {
     try {
       this.accounts.reserve(order);
     } catch (error) {
-      if (error instanceof InsufficientFunds) {
+      if (error instanceof NothingToGive) {
         throw new OrderRejected(error.message);
       }
       throw error;
@@ -50,9 +50,7 @@ export class Exchange {
       this.accounts.settle(trade);
     }
 
-    if (order.side === "buy") {
-      this.accounts.releaseBuyRemainder(order, this.stillLocked(order));
-    } else if (!this.isResting(order)) {
+    if (!this.isResting(order)) {
       this.accounts.release(order, order.remainingQuantity);
     }
 
@@ -66,13 +64,7 @@ export class Exchange {
     }
 
     this.log?.append({ kind: "cancel", symbol, orderId });
-
-    if (order.side === "buy" && order.priceInCents !== null) {
-      this.accounts.get(order.userId).cash.locked -=
-        order.priceInCents * order.remainingQuantity;
-    } else {
-      this.accounts.release(order, order.remainingQuantity);
-    }
+    this.accounts.release(order, order.remainingQuantity);
 
     return order;
   }
@@ -82,13 +74,6 @@ export class Exchange {
       order.type === "limit" &&
       (order.status === "open" || order.status === "partially_filled")
     );
-  }
-
-  private stillLocked(order: Order): number {
-    if (!this.isResting(order) || order.priceInCents === null) {
-      return 0;
-    }
-    return order.priceInCents * order.remainingQuantity;
   }
 
   private validate(order: Order): void {
@@ -109,13 +94,8 @@ export class Exchange {
         throw new OrderRejected("Price cannot be negative");
       }
     }
-    if (order.type === "market") {
-      if (order.priceInCents !== null) {
-        throw new OrderRejected("Market orders must not have a price");
-      }
-      if (order.side === "buy" && order.maxNotionalInCents === null) {
-        throw new OrderRejected("Market buys require maxNotionalInCents");
-      }
+    if (order.type === "market" && order.priceInCents !== null) {
+      throw new OrderRejected("Market orders must not have a price");
     }
   }
 }

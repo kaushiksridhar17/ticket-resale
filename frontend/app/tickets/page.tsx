@@ -70,9 +70,8 @@ export default function TicketsPage() {
     <div>
       <h1 className="font-display text-4xl leading-tight">What you are holding</h1>
       <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
-        Every ticket carries its own number. Passing one on moves that exact
-        ticket, and the one you hold keeps a record of everybody who held it
-        before you.
+        Every ticket carries its own number. Pay the venue at the door. If you
+        cannot go, pass it on and it returns to the front of the queue.
       </p>
 
       {groups.length === 0 ? (
@@ -123,9 +122,11 @@ export default function TicketsPage() {
                     <span className="eyebrow text-right text-muted">
                       {ticket.faceValueInCents === null
                         ? ""
-                        : formatPrice(ticket.faceValueInCents)}
+                        : ticket.faceValueInCents === 0
+                          ? "Free"
+                          : `${formatPrice(ticket.faceValueInCents)} at the door`}
                       {ticket.rotation > 1
-                        ? ` · ${ticket.rotation - 1} owners before you`
+                        ? ` · ${ticket.rotation - 1} before you`
                         : ""}
                     </span>
                   </li>

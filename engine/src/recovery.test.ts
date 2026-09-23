@@ -40,7 +40,6 @@ describe("startup recovery", () => {
       side,
       type: "limit",
       priceInCents,
-      maxNotionalInCents: null,
       quantity,
       remainingQuantity: quantity,
       status: "open",
@@ -103,29 +102,31 @@ describe("startup recovery", () => {
     second.close();
   });
 
-  it("rebuilds balances from replayed trades", () => {
+  it("rebuilds holdings from replayed trades", () => {
     const first = freshState();
     submit(first, "alice", "sell", 5000, 100);
     submit(first, "bob", "buy", 5000, 100);
-    const aliceCash = first.exchange.accounts.get("alice").cash.total;
+    const aliceTickets = first.heldTickets("alice", DEMO_SYMBOL);
     const bobTickets = first.heldTickets("bob", DEMO_SYMBOL);
     first.close();
 
     const second = new ExchangeState(logPath);
 
-    expect(second.exchange.accounts.get("alice").cash.total).toBe(aliceCash);
+    expect(second.heldTickets("alice", DEMO_SYMBOL)).toBe(aliceTickets);
     expect(second.heldTickets("bob", DEMO_SYMBOL)).toBe(bobTickets);
     second.close();
   });
 
-  it("restores locked funds for orders still resting", () => {
+  it("keeps a seller's listed tickets set aside after a restart", () => {
     const first = freshState();
-    submit(first, "alice", "buy", 4000, 10);
+    submit(first, "alice", "sell", 4000, 10);
     first.close();
 
     const second = new ExchangeState(logPath);
+    const position = second.exchange.accounts.get("alice").positions.get(DEMO_SYMBOL);
 
-    expect(second.exchange.accounts.get("alice").cash.locked).toBe(40_000);
+    expect(position?.locked).toBe(10);
+    expect(second.exchange.accounts.available("alice", DEMO_SYMBOL)).toBe(990);
     second.close();
   });
 

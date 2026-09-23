@@ -91,7 +91,6 @@ function toOrder(row: OrderRow): Order {
     side: row.side,
     type: row.type,
     priceInCents: row.price_cents,
-    maxNotionalInCents: null,
     quantity: row.quantity,
     remainingQuantity: row.remaining_quantity,
     status: row.status,

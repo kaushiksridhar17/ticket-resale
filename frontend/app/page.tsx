@@ -49,7 +49,8 @@ export default function EventsPage() {
         </h1>
         <p className="mt-5 text-sm leading-relaxed text-muted">
           When somebody can no longer go, their ticket comes back here and goes
-          to whoever has been waiting longest. Never for more than face value.
+          to whoever has been waiting longest. You pay the venue at the door, at
+          face value, and nothing changes hands in between.
         </p>
       </header>
 

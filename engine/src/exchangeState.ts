@@ -8,8 +8,6 @@ import type { PersistenceChanges } from "./db/writer.js";
 import type { Command } from "./commands.js";
 import type { Order, Side, Trade } from "./types.js";
 
-const STARTING_CASH = 100_000_00;
-
 export interface PersistenceTarget {
   enqueue(logSeq: number, changes: PersistenceChanges): void;
 }
@@ -78,7 +76,7 @@ export class ExchangeState {
     if (this.exchange.accounts.has(userId)) {
       return;
     }
-    this.exchange.accounts.open(userId, STARTING_CASH);
+    this.exchange.accounts.open(userId);
   }
 
   nextOrderId(): string {
@@ -252,7 +250,7 @@ export class ExchangeState {
 
     for (const symbol of this.events.symbols()) {
       const issued = this.events.issuedCount(symbol);
-      if (this.exchange.accounts.totalShares(symbol) !== issued) {
+      if (this.exchange.accounts.totalHeld(symbol) !== issued) {
         throw new Error(`Ticket count for ${symbol} does not match issuance`);
       }
       if (this.tickets.issuedCount(symbol) !== issued) {

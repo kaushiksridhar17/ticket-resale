@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ApiError, cancelOrder, placeOrder } from "@/lib/api";
-import { centsToDollars, dollarsToCents, formatPrice } from "@/lib/format";
+import { centsToDollars, formatPrice } from "@/lib/format";
 import { useExchangeSocket } from "@/lib/useExchangeSocket";
 import type { AccountSummary, EventSummary, Tier, User } from "@/lib/types";
 
@@ -55,7 +55,9 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
         </div>
         <div className="eyebrow mt-2 flex items-baseline justify-between gap-6 text-muted">
           <span>{tier.issued} printed</span>
-          <span>Face value</span>
+          <span>
+            {tier.faceValueInCents === 0 ? "Free" : "Paid at the door"}
+          </span>
         </div>
 
         <div className="stub -mx-6 my-6 border-t border-dashed border-rule" />
@@ -91,7 +93,7 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
             onChanged={onChanged}
           />
           {sellable > 0 && (
-            <SellPanel tier={tier} sellable={sellable} onChanged={onChanged} />
+            <PassOnPanel tier={tier} sellable={sellable} onChanged={onChanged} />
           )}
         </>
       )}
@@ -106,11 +108,8 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
                 className="flex items-baseline justify-between gap-4 border-b border-rule py-3 text-sm"
               >
                 <span>
-                  {order.side === "buy" ? "Waiting for" : "Offering"}{" "}
+                  {order.side === "buy" ? "Waiting for" : "Passing on"}{" "}
                   {order.remainingQuantity}
-                  {order.side === "sell" && order.priceInCents !== null
-                    ? ` at ${formatPrice(order.priceInCents)}`
-                    : ""}
                 </span>
                 <button
                   onClick={async () => {
@@ -201,14 +200,16 @@ function BuyPanel({
         0
       );
 
+      const owed = spent === 0 ? "Nothing to pay." : `$${centsToDollars(spent)} to pay at the door.`;
+
       if (got === 0) {
         setMessage("You are in the queue. Your place is held in the order you asked.");
       } else if (got < quantity) {
         setMessage(
-          `Got ${got} for $${centsToDollars(spent)}. The rest of your request is in the queue.`
+          `${got} ${got === 1 ? "is" : "are"} yours. ${owed} The rest of your request is in the queue.`
         );
       } else {
-        setMessage(`Got ${got} for $${centsToDollars(spent)}.`);
+        setMessage(`${got === 1 ? "It is" : "They are"} yours. ${owed}`);
       }
 
       onChanged();
@@ -222,7 +223,7 @@ function BuyPanel({
   return (
     <section>
       <h3 className="eyebrow text-muted">
-        {available > 0 ? "Take one" : "Join the queue"}
+        {available > 0 ? "Claim a ticket" : "Join the queue"}
       </h3>
 
       <div className="mt-3 flex items-end gap-4">
@@ -235,14 +236,16 @@ function BuyPanel({
           {pending
             ? "Working"
             : available > 0
-              ? `Take ${quantity === 1 ? "it" : "them"} at ${formatPrice(tier.faceValueInCents)} or less`
+              ? `Claim ${quantity === 1 ? "one" : `${quantity}`}`
               : "Put me in the queue"}
         </button>
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted">
-        You never pay more than {formatPrice(tier.faceValueInCents)}, and often
-        less. If none are spare you keep your place until one is.
+        {tier.faceValueInCents === 0
+          ? "Free. Nothing changes hands here, and nothing is taken from you."
+          : `Nothing is taken now. You pay the venue ${formatPrice(tier.faceValueInCents)} at the door, never more.`}{" "}
+        If none are spare you keep your place until one is.
       </p>
 
       {message && <p className="mt-3 text-sm">{message}</p>}
@@ -251,7 +254,7 @@ function BuyPanel({
   );
 }
 
-function SellPanel({
+function PassOnPanel({
   tier,
   sellable,
   onChanged,
@@ -261,22 +264,11 @@ function SellPanel({
   onChanged: () => void;
 }) {
   const [quantity, setQuantity] = useState(1);
-  const [price, setPrice] = useState(centsToDollars(tier.faceValueInCents));
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function sell() {
-    const cents = dollarsToCents(price);
-    if (cents === null) {
-      setError("That is not an amount");
-      return;
-    }
-    if (cents > tier.faceValueInCents) {
-      setError(`You cannot ask more than ${formatPrice(tier.faceValueInCents)}`);
-      return;
-    }
-
+  async function passOn() {
     setPending(true);
     setError(null);
     setMessage(null);
@@ -286,17 +278,17 @@ function SellPanel({
         symbol: tier.symbol,
         side: "sell",
         type: "limit",
-        priceInCents: cents,
+        priceInCents: tier.faceValueInCents,
         quantity,
       });
 
-      const sold = result.trades.reduce((sum, trade) => sum + trade.quantity, 0);
+      const gone = result.trades.reduce((sum, trade) => sum + trade.quantity, 0);
       setMessage(
-        sold === quantity
-          ? `Gone, to whoever was first in the queue.`
-          : sold > 0
-            ? `${sold} gone. The other ${quantity - sold} are up.`
-            : "Up for grabs. It goes to whoever is first in line."
+        gone === quantity
+          ? "Gone, to whoever was first in the queue."
+          : gone > 0
+            ? `${gone} gone. The other ${quantity - gone} are waiting for someone.`
+            : "Back in the pool. It goes to whoever is first in line."
       );
 
       onChanged();
@@ -313,19 +305,8 @@ function SellPanel({
 
       <div className="mt-3 flex items-end gap-4">
         <Quantity value={quantity} max={sellable} onChange={setQuantity} />
-
-        <label className="eyebrow text-muted">
-          Asking
-          <input
-            value={price}
-            onChange={(event) => setPrice(event.target.value)}
-            inputMode="decimal"
-            className="mt-1.5 block w-24 border border-rule bg-card px-2 py-2.5 font-sans text-sm text-ink outline-none focus:border-ink"
-          />
-        </label>
-
         <button
-          onClick={() => void sell()}
+          onClick={() => void passOn()}
           disabled={pending}
           className="eyebrow flex-1 border border-ink py-3.5 text-ink transition hover:bg-ink hover:text-paper disabled:opacity-40"
         >
@@ -334,8 +315,8 @@ function SellPanel({
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted">
-        Face value is {formatPrice(tier.faceValueInCents)} and you cannot ask
-        more. Ask less if you would rather it went quickly.
+        It goes straight back into the queue at face value, to whoever has been
+        waiting longest. There is nothing to haggle over and nothing to collect.
       </p>
 
       {message && <p className="mt-3 text-sm">{message}</p>}

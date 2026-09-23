@@ -45,8 +45,6 @@ function generateCommands(count: number, seed: number): Command[] {
       side,
       type,
       priceInCents,
-      maxNotionalInCents:
-        type === "market" && side === "buy" ? quantity * 6000 : null,
       quantity,
       remainingQuantity: quantity,
       status: "open",

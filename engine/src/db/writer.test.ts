@@ -63,7 +63,6 @@ function order(
     side: "buy",
     type: "limit",
     priceInCents: 5000,
-    maxNotionalInCents: null,
     quantity: 10,
     remainingQuantity,
     status,

@@ -40,7 +40,6 @@ function run(actions: Action[]): ExchangeState {
       side: action.side,
       type: "limit",
       priceInCents: action.priceInCents,
-      maxNotionalInCents: null,
       quantity: action.quantity,
       remainingQuantity: action.quantity,
       status: "open",

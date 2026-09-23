@@ -4,8 +4,8 @@ import { Exchange, OrderRejected } from "./exchange.js";
 import type { Order, OrderType, Side } from "./types.js";
 
 const USERS = ["alice", "bob", "carol", "dave"];
-const STARTING_CASH = 1_000_00;
-const STARTING_SHARES = 500;
+const SYMBOL = "evt_demo:GA";
+const STARTING_TICKETS = 500;
 
 interface Action {
   userIndex: number;
@@ -28,8 +28,8 @@ const actionArbitrary = fc.record({
 function freshExchange(): Exchange {
   const exchange = new Exchange();
   for (const user of USERS) {
-    exchange.accounts.open(user, STARTING_CASH);
-    exchange.accounts.credit(user, "ACME", STARTING_SHARES);
+    exchange.accounts.open(user);
+    exchange.accounts.credit(user, SYMBOL, STARTING_TICKETS);
   }
   return exchange;
 }
@@ -41,12 +41,10 @@ function buildOrder(action: Action, index: number): Order {
   return {
     id: `ord_${index}`,
     userId: USERS[action.userIndex]!,
-    symbol: "ACME",
+    symbol: SYMBOL,
     side: action.side,
     type: action.type,
     priceInCents: isMarket ? null : action.priceInCents,
-    maxNotionalInCents:
-      isMarket && action.side === "buy" ? quantity * 110 : null,
     quantity,
     remainingQuantity: quantity,
     status: "open",
@@ -68,7 +66,7 @@ function run(actions: Action[]): {
   actions.forEach((action, index) => {
     if (action.cancelIndex !== null && restingIds.length > 0) {
       const target = restingIds[action.cancelIndex % restingIds.length]!;
-      exchange.cancel("ACME", target);
+      exchange.cancel(SYMBOL, target);
       return;
     }
 
@@ -99,31 +97,19 @@ function run(actions: Action[]): {
 }
 
 describe("exchange properties", () => {
-  it("never creates or destroys cash", () => {
+  it("never creates or destroys tickets", () => {
     fc.assert(
       fc.property(fc.array(actionArbitrary, { maxLength: 200 }), (actions) => {
         const { exchange } = run(actions);
-        expect(exchange.accounts.totalCash()).toBe(
-          STARTING_CASH * USERS.length
+        expect(exchange.accounts.totalHeld(SYMBOL)).toBe(
+          STARTING_TICKETS * USERS.length
         );
       }),
       { numRuns: 500 }
     );
   });
 
-  it("never creates or destroys shares", () => {
-    fc.assert(
-      fc.property(fc.array(actionArbitrary, { maxLength: 200 }), (actions) => {
-        const { exchange } = run(actions);
-        expect(exchange.accounts.totalShares("ACME")).toBe(
-          STARTING_SHARES * USERS.length
-        );
-      }),
-      { numRuns: 500 }
-    );
-  });
-
-  it("never lets an account go negative or over-lock", () => {
+  it("never lets an account go short or over-commit", () => {
     fc.assert(
       fc.property(fc.array(actionArbitrary, { maxLength: 200 }), (actions) => {
         const { exchange } = run(actions);
@@ -156,8 +142,8 @@ describe("exchange properties", () => {
         expect(second.exchange.engine.digest()).toBe(
           first.exchange.engine.digest()
         );
-        expect(second.exchange.accounts.totalCash()).toBe(
-          first.exchange.accounts.totalCash()
+        expect(second.exchange.accounts.totalHeld(SYMBOL)).toBe(
+          first.exchange.accounts.totalHeld(SYMBOL)
         );
       }),
       { numRuns: 300 }

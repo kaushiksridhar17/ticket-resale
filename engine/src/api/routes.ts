@@ -47,7 +47,6 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
 
     return {
       userId: user.id,
-      cash: { total: account.cash.total, locked: account.cash.locked },
       positions,
       orders: state.ordersFor(user.id).slice(-50).reverse(),
     };
@@ -78,10 +77,6 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       side: body.side,
       type: body.type,
       priceInCents: body.type === "limit" ? body.priceInCents! : null,
-      maxNotionalInCents:
-        body.type === "market" && body.side === "buy"
-          ? body.maxNotionalInCents ?? null
-          : null,
       quantity: body.quantity,
       remainingQuantity: body.quantity,
       status: "open",

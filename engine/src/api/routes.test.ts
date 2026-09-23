@@ -114,7 +114,7 @@ describe("HTTP API", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().cash.total).toBeGreaterThan(0);
+    expect(response.json().userId).toMatch(/^usr_/);
     expect(response.json().positions.length).toBeGreaterThan(0);
   });
 
@@ -222,7 +222,7 @@ describe("HTTP API", () => {
       .positions.find((p: { symbol: string }) => p.symbol === DEMO_SYMBOL);
 
     expect(position.total).toBe(1060);
-    expect(account.json().cash.locked).toBe(0);
+    expect(position.locked).toBe(0);
   });
 
   it("rejects a malformed body", async () => {
@@ -263,32 +263,39 @@ describe("HTTP API", () => {
   it("returns 422 when the exchange refuses the order", async () => {
     const response = await placeOrder(alice, {
       symbol: DEMO_SYMBOL,
-      side: "buy",
+      side: "sell",
       type: "limit",
       priceInCents: 5000,
       quantity: 5000,
     });
 
     expect(response.statusCode).toBe(422);
-    expect(response.json().error).toContain("available");
+    expect(response.json().error).toContain("free");
   });
 
-  it("cancels a resting order and frees the funds", async () => {
+  it("cancels a resting offer and gives the tickets back", async () => {
     const placed = await placeOrder(alice, {
       symbol: DEMO_SYMBOL,
-      side: "buy",
+      side: "sell",
       type: "limit",
       priceInCents: 5000,
       quantity: 10,
     });
     const orderId = placed.json().order.id;
 
-    const before = await app.inject({
-      method: "GET",
-      url: "/account",
-      cookies: { session: alice },
-    });
-    expect(before.json().cash.locked).toBe(50_000);
+    const locked = async () => {
+      const account = await app.inject({
+        method: "GET",
+        url: "/account",
+        cookies: { session: alice },
+      });
+      return account
+        .json()
+        .positions.find((p: { symbol: string }) => p.symbol === DEMO_SYMBOL)
+        .locked;
+    };
+
+    expect(await locked()).toBe(10);
 
     const cancelled = await app.inject({
       method: "DELETE",
@@ -298,13 +305,7 @@ describe("HTTP API", () => {
 
     expect(cancelled.statusCode).toBe(200);
     expect(cancelled.json().order.status).toBe("cancelled");
-
-    const after = await app.inject({
-      method: "GET",
-      url: "/account",
-      cookies: { session: alice },
-    });
-    expect(after.json().cash.locked).toBe(0);
+    expect(await locked()).toBe(0);
   });
 
   it("refuses to cancel an order belonging to somebody else", async () => {

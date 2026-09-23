@@ -148,7 +148,6 @@ export interface PlaceOrderInput {
   type: "limit" | "market";
   priceInCents?: number;
   quantity: number;
-  maxNotionalInCents?: number;
 }
 
 export function placeOrder(

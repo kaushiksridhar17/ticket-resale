@@ -66,7 +66,6 @@ function limitOrder(
     side,
     type: "limit",
     priceInCents,
-    maxNotionalInCents: null,
     quantity,
     remainingQuantity: quantity,
     status: "open",

@@ -30,8 +30,6 @@ function buildOrders(count: number, seed: number): Order[] {
       side,
       type,
       priceInCents,
-      maxNotionalInCents:
-        type === "market" && side === "buy" ? quantity * 12000 : null,
       quantity,
       remainingQuantity: quantity,
       status: "open",
