@@ -41,21 +41,19 @@ export default function EventsPage() {
   return (
     <div>
       <header className="max-w-xl">
-        <p className="eyebrow text-accent">No markup, no touts</p>
-        <h1 className="mt-3 font-display text-5xl leading-[1.05]">
+        <h1 className="font-display text-5xl leading-[1.05]">
           Tickets at the price
           <br />
           they were <span className="italic">printed</span> at.
         </h1>
         <p className="mt-5 text-sm leading-relaxed text-muted">
-          When somebody can no longer go, their ticket comes back here and goes
-          to whoever has been waiting longest. You pay the venue at the door, at
-          face value, and nothing changes hands in between.
+          Can&apos;t make it any more? Your ticket goes back in the queue and the
+          next person in line gets it. You pay the venue on the night.
         </p>
       </header>
 
       <div className="mt-14">
-        <h2 className="eyebrow text-muted">What is on</h2>
+        <h2 className="eyebrow text-muted">What&apos;s on</h2>
 
         {error ? (
           <p className="mt-6 text-sm text-accent">{error}</p>
@@ -63,8 +61,7 @@ export default function EventsPage() {
           <p className="mt-6 text-sm text-muted">Loading</p>
         ) : events.length === 0 ? (
           <p className="mt-6 border-t border-rule pt-6 text-sm text-muted">
-            Nothing yet. An organizer needs to put an event up before tickets can
-            change hands.
+            Nothing on at the moment.
           </p>
         ) : (
           <ul className="mt-4 border-t border-rule">
@@ -111,7 +108,7 @@ function EventRow({ event }: { event: EventSummary }) {
                 ? "Cancelled"
                 : "Closed"
               : available > 0
-                ? `${available} available`
+                ? `${available} spare`
                 : waiting > 0
                   ? `${waiting} in the queue`
                   : "None spare"}

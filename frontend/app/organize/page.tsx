@@ -48,9 +48,8 @@ export default function OrganizePage() {
           This is the organizer side
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-muted">
-          Putting an event up is limited to addresses the venue has vouched for.
-          Ask whoever runs this instance to add yours to ORGANIZER_EMAILS, then
-          sign in again.
+          Only vouched-for addresses can put on an event. Get yours added to
+          ORGANIZER_EMAILS, then sign in again.
         </p>
       </div>
     );
@@ -72,8 +71,7 @@ export default function OrganizePage() {
         <p className="mt-10 text-sm text-muted">Loading</p>
       ) : events.length === 0 ? (
         <p className="mt-10 border-t border-rule pt-6 text-sm text-muted">
-          Nothing yet. Put one on and issue its tickets, and it appears on the
-          front page straight away.
+          Nothing yet. Put one on and it shows up out front straight away.
         </p>
       ) : (
         <ul className="mt-8 border-t border-rule">
@@ -97,7 +95,7 @@ export default function OrganizePage() {
                     </p>
                   </div>
                   <p className="eyebrow shrink-0 text-right text-muted">
-                    {issued === 0 ? "No tickets issued" : `${issued} issued`}
+                    {issued === 0 ? "No tickets yet" : `${issued} printed`}
                     <br />
                     {event.status === "cancelled"
                       ? "Cancelled"

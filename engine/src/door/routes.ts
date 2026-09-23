@@ -33,13 +33,13 @@ type Refusal =
 
 const REASONS: Record<Refusal, string> = {
   not_a_pass: "That is not a ticket",
-  out_of_date: "This pass has gone stale. Ask them to refresh it.",
-  forged: "This pass was not issued by us",
+  out_of_date: "Code has gone stale, ask them to refresh",
+  forged: "We did not issue this",
   unknown_ticket: "No such ticket",
-  passed_on: "This ticket has been passed on to somebody else",
-  wrong_event: "This ticket is for a different event",
-  event_off: "This event has been cancelled",
-  already_inside: "This ticket has already been used",
+  passed_on: "Passed on to somebody else",
+  wrong_event: "Wrong event",
+  event_off: "This event is off",
+  already_inside: "Already used",
 };
 
 export function registerDoorRoutes(app: FastifyInstance, deps: DoorDeps): void {
@@ -52,13 +52,13 @@ export function registerDoorRoutes(app: FastifyInstance, deps: DoorDeps): void {
     const ticket = state.getTicket(ticketId);
 
     if (!ticket || ticket.holderId !== user.id) {
-      return reply.code(404).send({ error: "You do not hold that ticket" });
+      return reply.code(404).send({ error: "Not your ticket" });
     }
 
     const ref = state.events.resolve(ticket.symbol);
     if (ref?.event.status === "cancelled") {
       return reply.code(409).send({
-        error: "This event has been cancelled",
+        error: "This event is off",
         cancelled: true,
       });
     }

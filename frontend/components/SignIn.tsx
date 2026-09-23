@@ -25,7 +25,7 @@ export function SignIn({ onSignedIn }: Props) {
       setStage("code");
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : "Could not reach the server"
+        caught instanceof ApiError ? caught.message : "Couldn\u2019t reach the server"
       );
     } finally {
       setPending(false);
@@ -42,7 +42,7 @@ export function SignIn({ onSignedIn }: Props) {
       onSignedIn(user);
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : "Could not reach the server"
+        caught instanceof ApiError ? caught.message : "Couldn\u2019t reach the server"
       );
     } finally {
       setPending(false);
@@ -56,8 +56,8 @@ export function SignIn({ onSignedIn }: Props) {
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-muted">
         {stage === "email"
-          ? "No password. We send a six digit code and that is the whole of it."
-          : `We sent six digits to ${email}.`}
+          ? "No password. We'll email you a six digit code."
+          : `Six digits, sent to ${email}.`}
       </p>
 
       {stage === "email" ? (
@@ -112,8 +112,8 @@ export function SignIn({ onSignedIn }: Props) {
       {error && <p className="mt-4 text-sm text-accent">{error}</p>}
 
       <p className="mt-10 border-t border-rule pt-4 text-xs leading-relaxed text-muted">
-        While this is running on your own machine the code is printed in the
-        engine terminal instead of emailed.
+        Running locally, the code prints in the engine terminal rather than
+        arriving by email.
       </p>
     </div>
   );

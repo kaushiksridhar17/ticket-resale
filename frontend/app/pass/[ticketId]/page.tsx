@@ -41,8 +41,8 @@ export default function PassPage() {
           if (!cancelled) {
             setError(
               caught instanceof ApiError && caught.status === 409
-                ? "This event has been called off, so there is no ticket to show."
-                : "That ticket is not yours, or no longer exists."
+                ? "This event has been called off."
+                : "That ticket isn\u2019t yours."
             );
           }
         });
@@ -106,7 +106,7 @@ export default function PassPage() {
         <div className="mt-10 border border-rule bg-card p-8">
           <p className="font-display text-3xl leading-tight">Already used</p>
           <p className="eyebrow mt-3 text-muted">
-            Scanned {formatDateTime(pass.admittedAt)}
+            Scanned in at {formatDateTime(pass.admittedAt)}
           </p>
         </div>
       ) : (
@@ -122,7 +122,7 @@ export default function PassPage() {
 
           {pass && (
             <div className="mt-6">
-              <p className="eyebrow text-muted">If the scanner will not play</p>
+              <p className="eyebrow text-muted">If the scanner won&apos;t play</p>
               <p className="mt-2 break-all font-mono text-[11px] leading-relaxed text-muted">
                 {pass.token}
               </p>
@@ -141,9 +141,8 @@ export default function PassPage() {
           )}
 
           <p className="mt-8 text-xs leading-relaxed text-muted">
-            This changes every half minute and stops working the moment you pass
-            the ticket on, so a screenshot is no use to anybody. Hold your phone
-            up at the door.
+            New code every half minute. Passing the ticket on kills the old
+            one, so a screenshot is no use to anyone.
           </p>
         </>
       )}

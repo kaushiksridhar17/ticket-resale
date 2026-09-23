@@ -79,11 +79,11 @@ export default function NewEventPage() {
       return;
     }
     if (salesCloseAt <= Date.now()) {
-      setError("Resale has to close at some point in the future");
+      setError("Resale has to close some time in the future");
       return;
     }
     if (salesCloseAt > startsAt) {
-      setError("Resale cannot close after the doors open");
+      setError("Resale can\u2019t close after the doors open");
       return;
     }
 
@@ -102,7 +102,7 @@ export default function NewEventPage() {
       }
       const limit = Number(tier.limit);
       if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
-        setError("The limit per person has to be between 1 and 50");
+        setError("Limit has to be between 1 and 50");
         return;
       }
 
@@ -126,7 +126,7 @@ export default function NewEventPage() {
       router.push(`/organize/${result.event.id}`);
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : "Could not put that on"
+        caught instanceof ApiError ? caught.message : "Couldn\u2019t put that on"
       );
       setPending(false);
     }
@@ -141,8 +141,8 @@ export default function NewEventPage() {
         Put on an event
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-muted">
-        The face value you set here is the ceiling forever. Nobody, including
-        you, can sell a ticket for this event above it.
+        Whatever you set as face value is the ceiling, permanently. Nobody can
+        go above it, including you.
       </p>
 
       <form onSubmit={submit} className="mt-10 space-y-10">
@@ -266,8 +266,8 @@ export default function NewEventPage() {
           )}
 
           <p className="mt-4 text-xs leading-relaxed text-muted">
-            Leave the face value empty for a free event. The limit is how many
-            one person may hold at once, counting anything they are queuing for.
+            Leave the price empty if it&apos;s free. The limit counts tickets
+            somebody holds plus anything they&apos;re queuing for.
           </p>
         </section>
 

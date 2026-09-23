@@ -35,8 +35,8 @@ export default function EventPage() {
           if (!cancelled) {
             setError(
               caught instanceof ApiError && caught.status === 404
-                ? "There is no such event."
-                : "Could not load this event."
+                ? "No such event."
+                : "Couldn\u2019t load this event."
             );
           }
         });
@@ -58,7 +58,7 @@ export default function EventPage() {
           href="/"
           className="eyebrow mt-4 inline-block text-muted hover:text-ink"
         >
-          ← Everything that is on
+          ← What&apos;s on
         </Link>
       </div>
     );
@@ -74,7 +74,7 @@ export default function EventPage() {
   return (
     <div>
       <Link href="/" className="eyebrow text-muted hover:text-ink">
-        ← Everything that is on
+        ← What&apos;s on
       </Link>
 
       <header className="mt-6 border-b border-rule pb-8">
@@ -89,7 +89,7 @@ export default function EventPage() {
           </p>
         ) : !event.resaleOpen ? (
           <p className="mt-5 border-l-2 border-rule pl-4 text-sm text-muted">
-            Resale has closed.
+            Resale is closed.
           </p>
         ) : (
           <p className="mt-3 text-xs text-muted">

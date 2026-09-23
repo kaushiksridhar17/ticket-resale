@@ -69,7 +69,7 @@ export class AuthService {
     const now = this.now();
     const existing = await this.store.getPendingCode(email);
     if (existing && now - existing.requestedAt < this.resendCooldownMs) {
-      throw new AuthError("cooldown", "A code was just sent. Try again in a moment.");
+      throw new AuthError("cooldown", "Just sent one. Give it a moment.");
     }
 
     const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
@@ -93,18 +93,18 @@ export class AuthService {
     const now = this.now();
 
     if (!pending) {
-      throw new AuthError("no_code", "Request a code first");
+      throw new AuthError("no_code", "Ask for a code first");
     }
     if (pending.expiresAt <= now) {
       await this.store.deletePendingCode(email);
-      throw new AuthError("expired", "That code has expired");
+      throw new AuthError("expired", "That code has run out");
     }
 
     if (!this.matches(this.hash(`${email}:${code.trim()}`), pending.codeHash)) {
       const attempts = await this.store.recordAttempt(email);
       if (attempts >= this.maxAttempts) {
         await this.store.deletePendingCode(email);
-        throw new AuthError("too_many_attempts", "Too many attempts. Request a new code.");
+        throw new AuthError("too_many_attempts", "Too many tries. Ask for a new code.");
       }
       throw new AuthError("invalid_code", "That code is not right");
     }

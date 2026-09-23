@@ -68,10 +68,10 @@ export default function TicketsPage() {
 
   return (
     <div>
-      <h1 className="font-display text-4xl leading-tight">What you are holding</h1>
+      <h1 className="font-display text-4xl leading-tight">Your tickets</h1>
       <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
-        Every ticket carries its own number. Tap one to show it at the door. If
-        you cannot go, pass it on and it returns to the front of the queue.
+        Tap one to show it at the door. Every ticket has its own number and
+        remembers everyone who held it before you.
       </p>
 
       {groups.length === 0 ? (
@@ -112,8 +112,7 @@ export default function TicketsPage() {
 
               {group.cancelled && (
                 <p className="mt-4 border-l-2 border-accent pl-4 text-sm">
-                  This event has been called off. These tickets will not get
-                  anybody in.
+                  Called off. These won&apos;t get anyone in.
                 </p>
               )}
 
@@ -136,7 +135,7 @@ export default function TicketsPage() {
                             ? "Free"
                             : `${formatPrice(ticket.faceValueInCents)} at the door`}
                         {ticket.rotation > 1
-                          ? ` · ${ticket.rotation - 1} before you`
+                          ? ` · ${ticket.rotation - 1} held it before you`
                           : ""}
                       </span>
                     </Link>

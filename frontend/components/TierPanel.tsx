@@ -64,16 +64,16 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
 
         <p className="text-sm leading-relaxed">
           {!open
-            ? "Resale has closed for this event."
+            ? "Resale has closed."
             : available > 0
-              ? `${available} spare right now, cheapest at ${formatPrice(cheapest ?? 0)}.`
+              ? `${available} spare, from ${formatPrice(cheapest ?? 0)}.`
               : waiting > 0
-                ? `None spare. ${waiting} ${waiting === 1 ? "ticket is" : "tickets are"} wanted, and they go in the order people asked.`
-                : "None spare right now."}
+                ? `None spare. ${waiting} already waiting.`
+                : "None spare just now."}
         </p>
         <p className="eyebrow mt-3 text-muted">
-          Limit {tier.perPersonLimit} per person
-          {held > 0 ? ` · you hold ${held}` : ""}
+          Max {tier.perPersonLimit} each
+          {held > 0 ? ` · you have ${held}` : ""}
         </p>
       </section>
 
@@ -82,7 +82,7 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
           <Link href="/signin" className="text-ink underline decoration-accent underline-offset-4">
             Sign in
           </Link>{" "}
-          to take one or join the queue.
+          to claim one or join the queue.
         </p>
       ) : !open ? null : (
         <>
@@ -100,7 +100,7 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
 
       {resting.length > 0 && (
         <section>
-          <h3 className="eyebrow text-muted">Your open requests</h3>
+          <h3 className="eyebrow text-muted">Pending</h3>
           <ul className="mt-3 border-t border-rule">
             {resting.map((order) => (
               <li
@@ -175,7 +175,7 @@ function BuyPanel({
   if (allowance <= 0) {
     return (
       <p className="border-l-2 border-accent pl-4 text-sm text-muted">
-        You are holding the most anyone can for this event, {tier.perPersonLimit}.
+        You&apos;ve got {tier.perPersonLimit}, which is the limit here.
       </p>
     );
   }
@@ -200,16 +200,15 @@ function BuyPanel({
         0
       );
 
-      const owed = spent === 0 ? "Nothing to pay." : `$${centsToDollars(spent)} to pay at the door.`;
+      const owed =
+        spent === 0 ? "Nothing to pay." : `$${centsToDollars(spent)} on the night.`;
 
       if (got === 0) {
-        setMessage("You are in the queue. Your place is held in the order you asked.");
+        setMessage("You're in the queue.");
       } else if (got < quantity) {
-        setMessage(
-          `${got} ${got === 1 ? "is" : "are"} yours. ${owed} The rest of your request is in the queue.`
-        );
+        setMessage(`${got} yours. ${owed} The rest are queued.`);
       } else {
-        setMessage(`${got === 1 ? "It is" : "They are"} yours. ${owed}`);
+        setMessage(`${got === 1 ? "It's" : "They're"} yours. ${owed}`);
       }
 
       onChanged();
@@ -243,9 +242,8 @@ function BuyPanel({
 
       <p className="mt-3 text-xs leading-relaxed text-muted">
         {tier.faceValueInCents === 0
-          ? "Free. Nothing changes hands here, and nothing is taken from you."
-          : `Nothing is taken now. You pay the venue ${formatPrice(tier.faceValueInCents)} at the door, never more.`}{" "}
-        If none are spare you keep your place until one is.
+          ? "Free entry. Nothing to pay, here or at the door."
+          : `You'll pay the venue ${formatPrice(tier.faceValueInCents)} on the night, never more.`}
       </p>
 
       {message && <p className="mt-3 text-sm">{message}</p>}
@@ -285,10 +283,10 @@ function PassOnPanel({
       const gone = result.trades.reduce((sum, trade) => sum + trade.quantity, 0);
       setMessage(
         gone === quantity
-          ? "Gone, to whoever was first in the queue."
+          ? "Gone, to whoever was first in line."
           : gone > 0
-            ? `${gone} gone. The other ${quantity - gone} are waiting for someone.`
-            : "Back in the pool. It goes to whoever is first in line."
+            ? `${gone} gone, ${quantity - gone} waiting for someone.`
+            : "Back in the queue."
       );
 
       onChanged();
@@ -301,7 +299,7 @@ function PassOnPanel({
 
   return (
     <section>
-      <h3 className="eyebrow text-muted">Cannot go? Pass it on</h3>
+      <h3 className="eyebrow text-muted">Can&apos;t go?</h3>
 
       <div className="mt-3 flex items-end gap-4">
         <Quantity value={quantity} max={sellable} onChange={setQuantity} />
@@ -315,8 +313,7 @@ function PassOnPanel({
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted">
-        It goes straight back into the queue at face value, to whoever has been
-        waiting longest. There is nothing to haggle over and nothing to collect.
+        Straight back in the queue, to whoever&apos;s been waiting longest.
       </p>
 
       {message && <p className="mt-3 text-sm">{message}</p>}

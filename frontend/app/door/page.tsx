@@ -62,7 +62,7 @@ export default function DoorPage() {
           message:
             caught instanceof ApiError
               ? caught.message
-              : "Could not reach the door",
+              : "Couldn\u2019t reach the door",
         });
       }
     },
@@ -113,7 +113,7 @@ export default function DoorPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setCameraError("No camera available. Type the code underneath instead.");
+          setCameraError("No camera here. Type it in instead.");
           setScanning(false);
         }
       });
@@ -137,8 +137,8 @@ export default function DoorPage() {
       <div className="max-w-lg">
         <h1 className="font-display text-4xl leading-tight">The door</h1>
         <p className="mt-4 text-sm leading-relaxed text-muted">
-          Only door staff and organizers can scan people in. Ask whoever runs
-          this instance to add your address to STAFF_EMAILS, then sign in again.
+          Only door staff and organizers can scan people in. Get your address
+          added to STAFF_EMAILS, then sign in again.
         </p>
       </div>
     );
@@ -195,7 +195,7 @@ export default function DoorPage() {
                 onClick={() => {
                   if (!detectorFor()) {
                     setCameraError(
-                      "This browser cannot read QR codes. Type the code underneath instead."
+                      "This browser can\u2019t read QR codes. Type it in instead."
                     );
                     return;
                   }
@@ -223,7 +223,7 @@ export default function DoorPage() {
           >
             <label className="block">
               <span className="eyebrow block pb-2 text-muted">
-                Or type the code
+Type it instead
               </span>
               <input
                 value={manual}
@@ -244,12 +244,11 @@ export default function DoorPage() {
       )}
 
       <p className="mt-10 text-xs leading-relaxed text-muted">
-        A pass is good for about half a minute and dies the moment its ticket is
-        passed on, so an old screenshot will not get anybody in.{" "}
+        Codes last half a minute and die when a ticket changes hands.{" "}
         <Link href="/organize" className="underline underline-offset-4">
           The organizer pages
         </Link>{" "}
-        show who is holding what.
+        show who holds what.
       </p>
     </div>
   );

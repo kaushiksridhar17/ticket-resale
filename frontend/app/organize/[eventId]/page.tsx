@@ -48,8 +48,8 @@ export default function ManageEventPage() {
           if (!cancelled) {
             setError(
               caught instanceof ApiError && caught.status === 403
-                ? "This is not your event."
-                : "Could not load this event."
+                ? "That\u2019s not your event."
+                : "Couldn\u2019t load this event."
             );
           }
         });
@@ -228,7 +228,7 @@ function IssueForm({
   async function issue() {
     const parsed = Number(count);
     if (!Number.isInteger(parsed) || parsed < 1) {
-      setError("That is not a number of tickets");
+      setError("That\u2019s not a number");
       return;
     }
 
@@ -238,7 +238,7 @@ function IssueForm({
       await issueTickets(eventId, tier.tierId, parsed);
       onChanged();
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Could not issue those");
+      setError(caught instanceof ApiError ? caught.message : "Couldn\u2019t print those");
     } finally {
       setPending(false);
     }
@@ -263,8 +263,7 @@ function IssueForm({
         </button>
       </div>
       <p className="mt-2 text-xs leading-relaxed text-muted">
-        They come to you first. Release them below when you want fans to have
-        them.
+        They&apos;re yours until you release them.
       </p>
       {error && <p className="mt-2 text-sm text-accent">{error}</p>}
     </div>
@@ -313,7 +312,7 @@ function ReleaseForm({
       setCount("");
       onChanged();
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Could not release those");
+      setError(caught instanceof ApiError ? caught.message : "Couldn\u2019t release those");
     } finally {
       setPending(false);
     }
@@ -345,8 +344,7 @@ function ReleaseForm({
         </button>
       </div>
       <p className="mt-2 text-xs leading-relaxed text-muted">
-        They go to whoever is first in the queue, oldest request first. Anyone
-        already waiting gets one immediately.
+        Straight to whoever&apos;s been waiting longest.
       </p>
       {error && <p className="mt-2 text-sm text-accent">{error}</p>}
     </div>
@@ -418,8 +416,7 @@ function EventControls({
       </div>
 
       <p className="mt-4 max-w-xl text-xs leading-relaxed text-muted">
-        Stopping resale closes the queue and hands everyone back what they had
-        set aside. Cancelling does the same and marks the event off for good.
+        Both clear the queue and hand back anything people had set aside.
         Neither can be undone.
       </p>
     </section>
