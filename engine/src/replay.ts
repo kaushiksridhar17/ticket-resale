@@ -14,7 +14,7 @@ export function replay(commands: Command[]): ReplayResult {
   for (const command of commands) {
     if (command.kind === "submit") {
       trades.push(...engine.submit(structuredClone(command.order)).trades);
-    } else {
+    } else if (command.kind === "cancel") {
       engine.cancel(command.symbol, command.orderId);
     }
   }

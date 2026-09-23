@@ -105,8 +105,8 @@ export class Exchange {
       if (order.priceInCents === null) {
         throw new OrderRejected("Limit orders require a price");
       }
-      if (!Number.isInteger(order.priceInCents) || order.priceInCents <= 0) {
-        throw new OrderRejected("Price must be a positive integer");
+      if (!Number.isInteger(order.priceInCents) || order.priceInCents < 0) {
+        throw new OrderRejected("Price cannot be negative");
       }
     }
     if (order.type === "market") {

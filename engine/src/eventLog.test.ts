@@ -107,7 +107,7 @@ describe("event log and replay", () => {
       log.append(command);
       if (command.kind === "submit") {
         liveTrades.push(...live.submit(structuredClone(command.order)).trades);
-      } else {
+      } else if (command.kind === "cancel") {
         live.cancel(command.symbol, command.orderId);
       }
     }

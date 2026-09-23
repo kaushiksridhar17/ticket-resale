@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildServer } from "../server.js";
 import type { FastifyInstance } from "fastify";
+import { ExchangeState } from "../exchangeState.js";
+import { DEMO_EVENT_ID, DEMO_SYMBOL, DEMO_TIER_ID, seedEvent } from "../testEvent.js";
+
+const OTHER_SYMBOL = "evt_other:GA";
 
 interface Message {
   type: string;
@@ -13,6 +17,7 @@ interface Message {
 
 describe("WebSocket broadcasting", () => {
   let app: FastifyInstance;
+  let state: ExchangeState;
   let url: string;
   const sockets: WebSocket[] = [];
   const codes: { email: string; code: string }[] = [];
@@ -30,6 +35,9 @@ describe("WebSocket broadcasting", () => {
       },
     });
     app = built.app;
+    state = built.state;
+    seedEvent(state);
+    seedEvent(state, { eventId: "evt_other" });
     await app.listen({ port: 0, host: "127.0.0.1" });
 
     const address = app.server.address();
@@ -94,6 +102,14 @@ describe("WebSocket broadcasting", () => {
       payload: { email, code },
     });
     const token = verified.cookies.find((entry) => entry.name === "session")!.value;
+
+    const account = await app.inject({
+      method: "GET",
+      url: "/account",
+      cookies: { session: token },
+    });
+    state.issueTickets(DEMO_EVENT_ID, DEMO_TIER_ID, 1000, account.json().userId);
+
     sessions.set(userId, token);
     return token;
   }
@@ -113,10 +129,10 @@ describe("WebSocket broadcasting", () => {
     const socket = await connect();
     const received = nextMessage(socket, (m) => m.type === "book");
 
-    socket.send(JSON.stringify({ type: "subscribe", symbol: "ACME" }));
+    socket.send(JSON.stringify({ type: "subscribe", symbol: DEMO_SYMBOL }));
 
     const message = await received;
-    expect(message.symbol).toBe("ACME");
+    expect(message.symbol).toBe(DEMO_SYMBOL);
     expect(message.book?.bids).toEqual([]);
     expect(message.book?.asks).toEqual([]);
   });
@@ -158,7 +174,7 @@ describe("WebSocket broadcasting", () => {
       2000
     ).catch(() => undefined);
 
-    socket.send(JSON.stringify({ type: "subscribe", symbol: "ACME" }));
+    socket.send(JSON.stringify({ type: "subscribe", symbol: DEMO_SYMBOL }));
     await nextMessage(socket, (m) => m.type === "book");
 
     const updated = nextMessage(
@@ -168,7 +184,7 @@ describe("WebSocket broadcasting", () => {
 
     await placeOrder({
       userId: "alice",
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
@@ -181,12 +197,12 @@ describe("WebSocket broadcasting", () => {
 
   it("pushes trades when orders cross", async () => {
     const socket = await connect();
-    socket.send(JSON.stringify({ type: "subscribe", symbol: "ACME" }));
+    socket.send(JSON.stringify({ type: "subscribe", symbol: DEMO_SYMBOL }));
     await nextMessage(socket, (m) => m.type === "book");
 
     await placeOrder({
       userId: "alice",
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
@@ -197,7 +213,7 @@ describe("WebSocket broadcasting", () => {
 
     await placeOrder({
       userId: "bob",
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5100,
@@ -212,18 +228,18 @@ describe("WebSocket broadcasting", () => {
 
   it("does not send updates for symbols a client did not subscribe to", async () => {
     const socket = await connect();
-    socket.send(JSON.stringify({ type: "subscribe", symbol: "ZENX" }));
+    socket.send(JSON.stringify({ type: "subscribe", symbol: OTHER_SYMBOL }));
     await nextMessage(socket, (m) => m.type === "book");
 
     const wrongSymbol = nextMessage(
       socket,
-      (m) => m.symbol === "ACME",
+      (m) => m.symbol === DEMO_SYMBOL,
       400
     );
 
     await placeOrder({
       userId: "alice",
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
@@ -235,17 +251,17 @@ describe("WebSocket broadcasting", () => {
 
   it("stops sending after unsubscribe", async () => {
     const socket = await connect();
-    socket.send(JSON.stringify({ type: "subscribe", symbol: "ACME" }));
+    socket.send(JSON.stringify({ type: "subscribe", symbol: DEMO_SYMBOL }));
     await nextMessage(socket, (m) => m.type === "book");
 
-    socket.send(JSON.stringify({ type: "unsubscribe", symbol: "ACME" }));
+    socket.send(JSON.stringify({ type: "unsubscribe", symbol: DEMO_SYMBOL }));
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     const afterUnsubscribe = nextMessage(socket, () => true, 400);
 
     await placeOrder({
       userId: "alice",
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
@@ -259,8 +275,8 @@ describe("WebSocket broadcasting", () => {
     const first = await connect();
     const second = await connect();
 
-    first.send(JSON.stringify({ type: "subscribe", symbol: "ACME" }));
-    second.send(JSON.stringify({ type: "subscribe", symbol: "ACME" }));
+    first.send(JSON.stringify({ type: "subscribe", symbol: DEMO_SYMBOL }));
+    second.send(JSON.stringify({ type: "subscribe", symbol: DEMO_SYMBOL }));
     await nextMessage(first, (m) => m.type === "book");
     await nextMessage(second, (m) => m.type === "book");
 
@@ -275,7 +291,7 @@ describe("WebSocket broadcasting", () => {
 
     await placeOrder({
       userId: "alice",
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
@@ -313,7 +329,7 @@ describe("WebSocket broadcasting", () => {
 
   it("coalesces rapid changes into fewer messages", async () => {
     const socket = await connect();
-    socket.send(JSON.stringify({ type: "subscribe", symbol: "ACME" }));
+    socket.send(JSON.stringify({ type: "subscribe", symbol: DEMO_SYMBOL }));
     await nextMessage(socket, (m) => m.type === "book");
 
     let bookMessages = 0;
@@ -327,7 +343,7 @@ describe("WebSocket broadcasting", () => {
     for (let i = 0; i < 20; i += 1) {
       await placeOrder({
         userId: "alice",
-        symbol: "ACME",
+        symbol: DEMO_SYMBOL,
         side: "sell",
         type: "limit",
         priceInCents: 5000 + i,

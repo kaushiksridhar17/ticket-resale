@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ExchangeState } from "./exchangeState.js";
+import { DEMO_SYMBOL, seedEvent } from "./testEvent.js";
 import type { Order } from "./types.js";
 
 describe("startup recovery", () => {
@@ -18,6 +19,12 @@ describe("startup recovery", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  function freshState(): ExchangeState {
+    const state = new ExchangeState(logPath);
+    seedEvent(state, { issueTo: ["alice", "bob", "carol"], count: 1000 });
+    return state;
+  }
+
   function submit(
     state: ExchangeState,
     userId: string,
@@ -26,10 +33,10 @@ describe("startup recovery", () => {
     quantity: number
   ): Order {
     state.ensureAccount(userId);
-    const order: Order = {
+    return state.submitOrder({
       id: state.nextOrderId(),
       userId,
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side,
       type: "limit",
       priceInCents,
@@ -39,35 +46,43 @@ describe("startup recovery", () => {
       status: "open",
       sequence: 0,
       createdAt: 1_700_000_000_000,
-    };
-    const result = state.exchange.submit(order);
-    state.recordOrder(result.order);
-    state.recordTrades(result.trades);
-    return result.order;
+    }).order;
   }
 
   it("starts empty when no log exists", () => {
     const state = new ExchangeState(logPath);
 
     expect(state.recovered).toBe(0);
-    expect(state.exchange.engine.snapshot("ACME").bids).toHaveLength(0);
+    expect(state.symbols()).toHaveLength(0);
     state.close();
   });
 
-  it("rebuilds the order book after a restart", () => {
-    const first = new ExchangeState(logPath);
-    submit(first, "alice", "sell", 5050, 100);
-    submit(first, "bob", "buy", 4900, 50);
+  it("recovers the event itself, not just the orders", () => {
+    const first = freshState();
     first.close();
 
     const second = new ExchangeState(logPath);
 
-    expect(second.recovered).toBe(2);
-    expect(second.exchange.engine.snapshot("ACME").asks[0]).toMatchObject({
+    expect(second.symbols()).toContain(DEMO_SYMBOL);
+    expect(second.heldTickets("alice", DEMO_SYMBOL)).toBe(1000);
+    second.close();
+  });
+
+  it("rebuilds the order book after a restart", () => {
+    const first = freshState();
+    submit(first, "alice", "sell", 5050, 100);
+    submit(first, "bob", "buy", 4900, 50);
+    const commands = first.logPosition();
+    first.close();
+
+    const second = new ExchangeState(logPath);
+
+    expect(second.recovered).toBe(commands);
+    expect(second.exchange.engine.snapshot(DEMO_SYMBOL).asks[0]).toMatchObject({
       priceInCents: 5050,
       totalQuantity: 100,
     });
-    expect(second.exchange.engine.snapshot("ACME").bids[0]).toMatchObject({
+    expect(second.exchange.engine.snapshot(DEMO_SYMBOL).bids[0]).toMatchObject({
       priceInCents: 4900,
       totalQuantity: 50,
     });
@@ -75,7 +90,7 @@ describe("startup recovery", () => {
   });
 
   it("produces an identical state digest after recovery", () => {
-    const first = new ExchangeState(logPath);
+    const first = freshState();
     submit(first, "alice", "sell", 5050, 100);
     submit(first, "bob", "sell", 5075, 80);
     submit(first, "carol", "buy", 5060, 60);
@@ -89,24 +104,22 @@ describe("startup recovery", () => {
   });
 
   it("rebuilds balances from replayed trades", () => {
-    const first = new ExchangeState(logPath);
+    const first = freshState();
     submit(first, "alice", "sell", 5000, 100);
     submit(first, "bob", "buy", 5000, 100);
     const aliceCash = first.exchange.accounts.get("alice").cash.total;
-    const bobShares = first.exchange.accounts.get("bob").positions.get("ACME");
+    const bobTickets = first.heldTickets("bob", DEMO_SYMBOL);
     first.close();
 
     const second = new ExchangeState(logPath);
 
     expect(second.exchange.accounts.get("alice").cash.total).toBe(aliceCash);
-    expect(second.exchange.accounts.get("bob").positions.get("ACME")?.total).toBe(
-      bobShares?.total
-    );
+    expect(second.heldTickets("bob", DEMO_SYMBOL)).toBe(bobTickets);
     second.close();
   });
 
   it("restores locked funds for orders still resting", () => {
-    const first = new ExchangeState(logPath);
+    const first = freshState();
     submit(first, "alice", "buy", 4000, 10);
     first.close();
 
@@ -117,22 +130,22 @@ describe("startup recovery", () => {
   });
 
   it("does not resurrect cancelled orders", () => {
-    const first = new ExchangeState(logPath);
+    const first = freshState();
     const order = submit(first, "alice", "sell", 5050, 100);
-    first.exchange.cancel("ACME", order.id);
+    first.cancelOrder(DEMO_SYMBOL, order.id);
     first.close();
 
     const second = new ExchangeState(logPath);
 
-    expect(second.exchange.engine.snapshot("ACME").asks).toHaveLength(0);
-    expect(second.exchange.accounts.get("alice").positions.get("ACME")?.locked).toBe(
-      0
-    );
+    expect(second.exchange.engine.snapshot(DEMO_SYMBOL).asks).toHaveLength(0);
+    expect(
+      second.exchange.accounts.get("alice").positions.get(DEMO_SYMBOL)?.locked
+    ).toBe(0);
     second.close();
   });
 
   it("issues order ids that do not collide with recovered ones", () => {
-    const first = new ExchangeState(logPath);
+    const first = freshState();
     submit(first, "alice", "sell", 5050, 100);
     submit(first, "alice", "sell", 5060, 100);
     first.close();
@@ -144,7 +157,7 @@ describe("startup recovery", () => {
   });
 
   it("does not grow the log during recovery", () => {
-    const first = new ExchangeState(logPath);
+    const first = freshState();
     submit(first, "alice", "sell", 5050, 100);
     submit(first, "bob", "buy", 4900, 50);
     first.close();
@@ -160,15 +173,15 @@ describe("startup recovery", () => {
   });
 
   it("keeps recovered trades visible in the feed", () => {
-    const first = new ExchangeState(logPath);
+    const first = freshState();
     submit(first, "alice", "sell", 5000, 100);
     submit(first, "bob", "buy", 5000, 40);
     first.close();
 
     const second = new ExchangeState(logPath);
 
-    expect(second.recentTrades("ACME")).toHaveLength(1);
-    expect(second.recentTrades("ACME")[0]?.quantity).toBe(40);
+    expect(second.recentTrades(DEMO_SYMBOL)).toHaveLength(1);
+    expect(second.recentTrades(DEMO_SYMBOL)[0]?.quantity).toBe(40);
     second.close();
   });
 });

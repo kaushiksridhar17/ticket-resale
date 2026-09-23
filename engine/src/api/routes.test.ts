@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildServer } from "../server.js";
 import type { FastifyInstance } from "fastify";
+import { ExchangeState } from "../exchangeState.js";
+import { DEMO_SYMBOL, seedEvent } from "../testEvent.js";
+
+const OTHER_SYMBOL = "evt_other:GA";
 
 describe("HTTP API", () => {
   let app: FastifyInstance;
   let codes: { email: string; code: string }[];
   let alice: string;
   let bob: string;
+  let state: ExchangeState;
+  let aliceId: string;
+  let bobId: string;
 
   beforeEach(async () => {
     codes = [];
@@ -18,10 +25,16 @@ describe("HTTP API", () => {
       },
     });
     app = built.app;
+    state = built.state;
     await app.ready();
 
     alice = await signIn("alice@example.com");
     bob = await signIn("bob@example.com");
+    aliceId = await userIdFor(alice);
+    bobId = await userIdFor(bob);
+
+    seedEvent(state, { issueTo: [aliceId, bobId], count: 1000 });
+    seedEvent(state, { eventId: "evt_other" });
   });
 
   afterEach(async () => {
@@ -43,6 +56,15 @@ describe("HTTP API", () => {
     return response.cookies.find((entry) => entry.name === "session")!.value;
   }
 
+  async function userIdFor(session: string): Promise<string> {
+    const response = await app.inject({
+      method: "GET",
+      url: "/account",
+      cookies: { session },
+    });
+    return response.json().userId;
+  }
+
   async function placeOrder(session: string, body: Record<string, unknown>) {
     return app.inject({
       method: "POST",
@@ -62,14 +84,14 @@ describe("HTTP API", () => {
   it("lists the available symbols", async () => {
     const response = await app.inject({ method: "GET", url: "/symbols" });
 
-    expect(response.json().symbols).toContain("ACME");
+    expect(response.json().symbols).toContain(DEMO_SYMBOL);
   });
 
   it("returns an empty book for a fresh symbol", async () => {
-    const response = await app.inject({ method: "GET", url: "/book/ACME" });
+    const response = await app.inject({ method: "GET", url: `/book/${DEMO_SYMBOL}` });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ symbol: "ACME", bids: [], asks: [] });
+    expect(response.json()).toMatchObject({ symbol: DEMO_SYMBOL, bids: [], asks: [] });
   });
 
   it("rejects an unknown symbol", async () => {
@@ -101,7 +123,7 @@ describe("HTTP API", () => {
       method: "POST",
       url: "/orders",
       payload: {
-        symbol: "ACME",
+        symbol: DEMO_SYMBOL,
         side: "sell",
         type: "limit",
         priceInCents: 5050,
@@ -115,7 +137,7 @@ describe("HTTP API", () => {
   it("ignores a userId in the body and uses the session", async () => {
     const placed = await placeOrder(alice, {
       userId: "somebody_else",
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
@@ -135,7 +157,7 @@ describe("HTTP API", () => {
 
   it("rests a limit order and shows it in the book", async () => {
     const response = await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
@@ -145,7 +167,7 @@ describe("HTTP API", () => {
     expect(response.statusCode).toBe(201);
     expect(response.json().order.status).toBe("open");
 
-    const book = await app.inject({ method: "GET", url: "/book/ACME" });
+    const book = await app.inject({ method: "GET", url: `/book/${DEMO_SYMBOL}` });
     expect(book.json().asks[0]).toMatchObject({
       priceInCents: 5050,
       totalQuantity: 100,
@@ -154,7 +176,7 @@ describe("HTTP API", () => {
 
   it("executes at the resting price, not the incoming price", async () => {
     await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
@@ -162,7 +184,7 @@ describe("HTTP API", () => {
     });
 
     const response = await placeOrder(bob, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5100,
@@ -176,14 +198,14 @@ describe("HTTP API", () => {
 
   it("settles balances through the API", async () => {
     await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
       quantity: 100,
     });
     await placeOrder(bob, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5100,
@@ -197,7 +219,7 @@ describe("HTTP API", () => {
     });
     const position = account
       .json()
-      .positions.find((p: { symbol: string }) => p.symbol === "ACME");
+      .positions.find((p: { symbol: string }) => p.symbol === DEMO_SYMBOL);
 
     expect(position.total).toBe(1060);
     expect(account.json().cash.locked).toBe(0);
@@ -205,7 +227,7 @@ describe("HTTP API", () => {
 
   it("rejects a malformed body", async () => {
     const response = await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sideways",
       type: "limit",
       priceInCents: 5050,
@@ -217,7 +239,7 @@ describe("HTTP API", () => {
 
   it("rejects a limit order with no price", async () => {
     const response = await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       quantity: 10,
@@ -228,7 +250,7 @@ describe("HTTP API", () => {
 
   it("rejects a market order that carries a price", async () => {
     const response = await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "market",
       priceInCents: 5050,
@@ -240,7 +262,7 @@ describe("HTTP API", () => {
 
   it("returns 422 when the exchange refuses the order", async () => {
     const response = await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5000,
@@ -253,7 +275,7 @@ describe("HTTP API", () => {
 
   it("cancels a resting order and frees the funds", async () => {
     const placed = await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5000,
@@ -287,7 +309,7 @@ describe("HTTP API", () => {
 
   it("refuses to cancel an order belonging to somebody else", async () => {
     const placed = await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5000,
@@ -303,13 +325,13 @@ describe("HTTP API", () => {
 
     expect(response.statusCode).toBe(403);
 
-    const book = await app.inject({ method: "GET", url: "/book/ACME" });
+    const book = await app.inject({ method: "GET", url: `/book/${DEMO_SYMBOL}` });
     expect(book.json().bids[0]?.totalQuantity).toBe(10);
   });
 
   it("refuses to cancel without a session", async () => {
     const placed = await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5000,
@@ -336,14 +358,14 @@ describe("HTTP API", () => {
 
   it("returns 409 when cancelling an order that already filled", async () => {
     await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
       quantity: 10,
     });
     const filled = await placeOrder(bob, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5050,
@@ -361,21 +383,21 @@ describe("HTTP API", () => {
 
   it("records executed trades for the symbol", async () => {
     await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
       quantity: 100,
     });
     await placeOrder(bob, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "buy",
       type: "limit",
       priceInCents: 5100,
       quantity: 60,
     });
 
-    const response = await app.inject({ method: "GET", url: "/trades/ACME" });
+    const response = await app.inject({ method: "GET", url: `/trades/${DEMO_SYMBOL}` });
 
     expect(response.json().trades).toHaveLength(1);
     expect(response.json().trades[0].quantity).toBe(60);
@@ -383,14 +405,14 @@ describe("HTTP API", () => {
 
   it("keeps symbols independent", async () => {
     await placeOrder(alice, {
-      symbol: "ACME",
+      symbol: DEMO_SYMBOL,
       side: "sell",
       type: "limit",
       priceInCents: 5050,
       quantity: 100,
     });
 
-    const zenx = await app.inject({ method: "GET", url: "/book/ZENX" });
-    expect(zenx.json().asks).toHaveLength(0);
+    const other = await app.inject({ method: "GET", url: `/book/${OTHER_SYMBOL}` });
+    expect(other.json().asks).toHaveLength(0);
   });
 });
