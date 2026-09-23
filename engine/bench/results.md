@@ -4,9 +4,9 @@ Two benchmarks. The first measures how fast the matching engine is. The
 second measures whether a ticket drop is actually fair when thousands of
 people arrive at once, which is the thing this project claims.
 
-Hardware: [your CPU, RAM]
+Hardware: Intel Core Ultra 7 155U, 14 GB
 OS: Windows
-Node: [run `node -v`]
+Node: 24.21.0
 Date: 2026-09-23
 
 ## Matching engine, in-process
@@ -17,11 +17,11 @@ discarded so V8 JIT compilation does not flatter the result.
 
 - orders submitted: 200,000
 - trades executed: 159,278
-- elapsed: 0.20s
-- throughput: 994,214 orders/sec
+- elapsed: 0.15s
+- throughput: 1,324,502 orders/sec
 
 Per-order latency:
-- mean 0.89 us, p50 0.56 us, p95 1.49 us, p99 2.27 us, max 5,701 us
+- mean 0.67 us, p50 0.40 us, p95 1.30 us, p99 2.20 us, max 9,268 us
 
 The max is a garbage collection pause. p50 and p99 are the meaningful
 figures; the tail is the known cost of a managed runtime.
@@ -37,12 +37,12 @@ genuine authenticated call through Fastify, the matching engine, and
 the event log.
 
 - claims: 10,000
-- elapsed: 3.93s
-- throughput: 2,545 claims/sec
+- elapsed: 6.36s
+- throughput: 1,573 claims/sec
 - rejected: 0
 
 Latency:
-- p50 146ms, p95 226ms, p99 300ms, max 345ms
+- p50 248ms, p95 351ms, p99 559ms, max 608ms
 
 Allocation:
 - tickets released: 2,000
