@@ -1,5 +1,7 @@
 import type { Database } from "./database.js";
 import type { PersistenceBatch, PersistenceSink } from "./writer.js";
+import type { EventDefinition } from "../events/types.js";
+import type { Ticket, TicketTransfer } from "../tickets/types.js";
 import type { Order, Trade } from "../types.js";
 
 const TRADE_COLUMNS = [
@@ -30,6 +32,36 @@ const ORDER_COLUMNS = [
   "created_at",
 ];
 
+const EVENT_COLUMNS = [
+  "id",
+  "organizer_id",
+  "name",
+  "venue",
+  "starts_at",
+  "sales_close_at",
+  "payment_mode",
+  "status",
+];
+
+const TIER_COLUMNS = [
+  "event_id",
+  "tier_id",
+  "name",
+  "face_value_cents",
+  "per_person_limit",
+];
+
+const TICKET_COLUMNS = ["id", "symbol", "serial", "holder_id", "rotation"];
+
+const TRANSFER_COLUMNS = [
+  "ticket_id",
+  "rotation",
+  "symbol",
+  "from_user_id",
+  "to_user_id",
+  "trade_id",
+];
+
 export class PostgresSink implements PersistenceSink {
   constructor(private readonly db: Database) {}
 
@@ -38,11 +70,26 @@ export class PostgresSink implements PersistenceSink {
     try {
       await client.query("BEGIN");
 
+      if (batch.events.length > 0) {
+        await client.query(eventUpsert(batch.events));
+        const tiers = batch.events.flatMap((event) =>
+          event.tiers.map((tier) => ({ eventId: event.id, tier }))
+        );
+        if (tiers.length > 0) {
+          await client.query(tierUpsert(tiers));
+        }
+      }
       if (batch.trades.length > 0) {
         await client.query(tradeInsert(batch.trades));
       }
       if (batch.orders.length > 0) {
         await client.query(orderUpsert(batch.orders));
+      }
+      if (batch.tickets.length > 0) {
+        await client.query(ticketUpsert(batch.tickets));
+      }
+      if (batch.transfers.length > 0) {
+        await client.query(transferInsert(batch.transfers));
       }
 
       await client.query(
@@ -129,6 +176,93 @@ function orderUpsert(orders: Order[]) {
              status = EXCLUDED.status,
              sequence = EXCLUDED.sequence,
              updated_at = now()`,
+    values,
+  };
+}
+
+function eventUpsert(events: EventDefinition[]) {
+  const values = events.flatMap((event) => [
+    event.id,
+    event.organizerId,
+    event.name,
+    event.venue,
+    new Date(event.startsAt),
+    new Date(event.salesCloseAt),
+    event.paymentMode,
+    event.status,
+  ]);
+
+  return {
+    text: `INSERT INTO events (${EVENT_COLUMNS.join(", ")})
+           VALUES ${placeholders(events.length, EVENT_COLUMNS.length)}
+           ON CONFLICT (id) DO UPDATE SET
+             name = EXCLUDED.name,
+             venue = EXCLUDED.venue,
+             starts_at = EXCLUDED.starts_at,
+             sales_close_at = EXCLUDED.sales_close_at,
+             payment_mode = EXCLUDED.payment_mode,
+             status = EXCLUDED.status`,
+    values,
+  };
+}
+
+function tierUpsert(
+  tiers: { eventId: string; tier: EventDefinition["tiers"][number] }[]
+) {
+  const values = tiers.flatMap(({ eventId, tier }) => [
+    eventId,
+    tier.tierId,
+    tier.name,
+    tier.faceValueInCents,
+    tier.perPersonLimit,
+  ]);
+
+  return {
+    text: `INSERT INTO event_tiers (${TIER_COLUMNS.join(", ")})
+           VALUES ${placeholders(tiers.length, TIER_COLUMNS.length)}
+           ON CONFLICT (event_id, tier_id) DO UPDATE SET
+             name = EXCLUDED.name,
+             face_value_cents = EXCLUDED.face_value_cents,
+             per_person_limit = EXCLUDED.per_person_limit`,
+    values,
+  };
+}
+
+function ticketUpsert(tickets: Ticket[]) {
+  const values = tickets.flatMap((ticket) => [
+    ticket.id,
+    ticket.symbol,
+    ticket.serial,
+    ticket.holderId,
+    ticket.rotation,
+  ]);
+
+  return {
+    text: `INSERT INTO tickets (${TICKET_COLUMNS.join(", ")})
+           VALUES ${placeholders(tickets.length, TICKET_COLUMNS.length)}
+           ON CONFLICT (id) DO UPDATE SET
+             holder_id = EXCLUDED.holder_id,
+             rotation = EXCLUDED.rotation,
+             updated_at = now()
+           WHERE EXCLUDED.rotation >= tickets.rotation`,
+    values,
+  };
+}
+
+function transferInsert(transfers: TicketTransfer[]) {
+  const values = transfers.flatMap((transfer) => [
+    transfer.ticketId,
+    transfer.rotation,
+    transfer.symbol,
+    transfer.fromUserId,
+    transfer.toUserId,
+    transfer.tradeId,
+  ]);
+
+  return {
+    text: `INSERT INTO ticket_transfers (${TRANSFER_COLUMNS.join(", ")})
+           VALUES ${placeholders(transfers.length, TRANSFER_COLUMNS.length)}
+           ON CONFLICT (ticket_id, rotation) DO NOTHING`,
     values,
   };
 }

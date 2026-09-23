@@ -1,8 +1,21 @@
+import type { EventDefinition } from "../events/types.js";
+import type { Ticket, TicketTransfer } from "../tickets/types.js";
 import type { Order, Trade } from "../types.js";
+
+export interface PersistenceChanges {
+  trades?: Trade[];
+  orders?: Order[];
+  events?: EventDefinition[];
+  tickets?: Ticket[];
+  transfers?: TicketTransfer[];
+}
 
 export interface PersistenceBatch {
   trades: Trade[];
   orders: Order[];
+  events: EventDefinition[];
+  tickets: Ticket[];
+  transfers: TicketTransfer[];
   lastLogSeq: number;
 }
 
@@ -20,6 +33,9 @@ interface Group {
   logSeq: number;
   trades: Trade[];
   orders: Order[];
+  events: EventDefinition[];
+  tickets: Ticket[];
+  transfers: TicketTransfer[];
 }
 
 export class PersistenceWriter {
@@ -55,16 +71,23 @@ export class PersistenceWriter {
     this.timer.unref();
   }
 
-  enqueue(logSeq: number, trades: Trade[], orders: Order[]): void {
-    if (trades.length === 0 && orders.length === 0) {
+  enqueue(logSeq: number, changes: PersistenceChanges): void {
+    const group: Group = {
+      logSeq,
+      trades: (changes.trades ?? []).map((trade) => ({ ...trade })),
+      orders: (changes.orders ?? []).map((order) => ({ ...order })),
+      events: (changes.events ?? []).map((event) => structuredClone(event)),
+      tickets: (changes.tickets ?? []).map((ticket) => ({ ...ticket })),
+      transfers: (changes.transfers ?? []).map((transfer) => ({ ...transfer })),
+    };
+
+    const size = groupSize(group);
+    if (size === 0) {
       return;
     }
-    this.queue.push({
-      logSeq,
-      trades: trades.map((trade) => ({ ...trade })),
-      orders: orders.map((order) => ({ ...order })),
-    });
-    this.pendingItems += trades.length + orders.length;
+
+    this.queue.push(group);
+    this.pendingItems += size;
 
     if (!this.inFlight && this.pendingItems >= this.maxBatchSize) {
       void this.flush();
@@ -125,11 +148,16 @@ export class PersistenceWriter {
   private async writeNext(): Promise<boolean> {
     const groups = this.takeGroups();
     const batch = this.buildBatch(groups);
-    const size = this.countItems(groups);
+    const size = groups.reduce((sum, group) => sum + groupSize(group), 0);
 
     try {
       await this.sink.write(batch);
-      this.written += batch.trades.length + batch.orders.length;
+      this.written +=
+        batch.trades.length +
+        batch.orders.length +
+        batch.events.length +
+        batch.tickets.length +
+        batch.transfers.length;
       return true;
     } catch (error) {
       this.failures += 1;
@@ -145,7 +173,7 @@ export class PersistenceWriter {
     let take = 0;
     while (take < this.queue.length && (take === 0 || count < this.maxBatchSize)) {
       const group = this.queue[take]!;
-      const size = group.trades.length + group.orders.length;
+      const size = groupSize(group);
       if (take > 0 && count + size > this.maxBatchSize) {
         break;
       }
@@ -160,25 +188,43 @@ export class PersistenceWriter {
   private buildBatch(groups: Group[]): PersistenceBatch {
     const trades: Trade[] = [];
     const orders = new Map<string, Order>();
+    const events = new Map<string, EventDefinition>();
+    const tickets = new Map<string, Ticket>();
+    const transfers = new Map<string, TicketTransfer>();
 
     for (const group of groups) {
       trades.push(...group.trades);
       for (const order of group.orders) {
         orders.set(order.id, order);
       }
+      for (const event of group.events) {
+        events.set(event.id, event);
+      }
+      for (const ticket of group.tickets) {
+        tickets.set(ticket.id, ticket);
+      }
+      for (const transfer of group.transfers) {
+        transfers.set(`${transfer.ticketId}:${transfer.rotation}`, transfer);
+      }
     }
 
     return {
       trades,
       orders: [...orders.values()],
+      events: [...events.values()],
+      tickets: [...tickets.values()],
+      transfers: [...transfers.values()],
       lastLogSeq: groups[groups.length - 1]?.logSeq ?? 0,
     };
   }
+}
 
-  private countItems(groups: Group[]): number {
-    return groups.reduce(
-      (sum, group) => sum + group.trades.length + group.orders.length,
-      0
-    );
-  }
+function groupSize(group: Group): number {
+  return (
+    group.trades.length +
+    group.orders.length +
+    group.events.length +
+    group.tickets.length +
+    group.transfers.length
+  );
 }

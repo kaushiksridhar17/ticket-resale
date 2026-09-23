@@ -88,7 +88,7 @@ describe("PersistenceWriter", () => {
     const sink = new FakeSink();
     const writer = new PersistenceWriter(sink, quiet);
 
-    writer.enqueue(1, [trade(1), trade(2)], [order("ord_1", 10)]);
+    writer.enqueue(1, { trades: [trade(1), trade(2)], orders: [order("ord_1", 10)] });
     await writer.flush();
 
     expect(sink.batches).toHaveLength(1);
@@ -101,8 +101,8 @@ describe("PersistenceWriter", () => {
     const sink = new FakeSink();
     const writer = new PersistenceWriter(sink, quiet);
 
-    writer.enqueue(1, [], [order("ord_1", 10, "open")]);
-    writer.enqueue(2, [], [order("ord_1", 4, "partially_filled")]);
+    writer.enqueue(1, { orders: [order("ord_1", 10, "open")] });
+    writer.enqueue(2, { orders: [order("ord_1", 4, "partially_filled")] });
     await writer.flush();
 
     const orders = sink.batches[0]?.orders ?? [];
@@ -116,7 +116,7 @@ describe("PersistenceWriter", () => {
     const writer = new PersistenceWriter(sink, quiet);
     const live = order("ord_1", 10);
 
-    writer.enqueue(1, [], [live]);
+    writer.enqueue(1, { orders: [live] });
     live.remainingQuantity = 0;
     live.status = "filled";
     await writer.flush();
@@ -130,7 +130,7 @@ describe("PersistenceWriter", () => {
     const writer = new PersistenceWriter(sink, { ...quiet, maxBatchSize: 100 });
 
     for (let n = 1; n <= 1000; n += 1) {
-      writer.enqueue(n, [trade(n)], []);
+      writer.enqueue(n, { trades: [trade(n)] });
     }
     await writer.drain();
 
@@ -144,9 +144,9 @@ describe("PersistenceWriter", () => {
     const sink = new FakeSink();
     const writer = new PersistenceWriter(sink, { ...quiet, maxBatchSize: 2 });
 
-    writer.enqueue(1, [trade(1)], []);
-    writer.enqueue(2, [trade(2)], []);
-    writer.enqueue(3, [trade(3)], []);
+    writer.enqueue(1, { trades: [trade(1)] });
+    writer.enqueue(2, { trades: [trade(2)] });
+    writer.enqueue(3, { trades: [trade(3)] });
     await writer.drain();
 
     expect(sink.batches.map((batch) => batch.lastLogSeq)).toEqual([2, 3]);
@@ -156,8 +156,8 @@ describe("PersistenceWriter", () => {
     const sink = new FakeSink();
     const writer = new PersistenceWriter(sink, { ...quiet, maxBatchSize: 3 });
 
-    writer.enqueue(1, [trade(1), trade(2)], []);
-    writer.enqueue(2, [trade(3), trade(4)], []);
+    writer.enqueue(1, { trades: [trade(1), trade(2)] });
+    writer.enqueue(2, { trades: [trade(3), trade(4)] });
     await writer.drain();
 
     expect(sink.batches.map((batch) => batch.trades.length)).toEqual([2, 2]);
@@ -169,8 +169,8 @@ describe("PersistenceWriter", () => {
     const writer = new PersistenceWriter(sink, { onError: () => (errors += 1) });
     sink.failuresRemaining = 1;
 
-    writer.enqueue(1, [trade(1)], []);
-    writer.enqueue(2, [trade(2)], []);
+    writer.enqueue(1, { trades: [trade(1)] });
+    writer.enqueue(2, { trades: [trade(2)] });
 
     await writer.flush();
     expect(sink.batches).toHaveLength(0);
@@ -189,7 +189,7 @@ describe("PersistenceWriter", () => {
     const writer = new PersistenceWriter(sink, { ...quiet, maxBatchSize: 1 });
 
     for (let n = 1; n <= 5; n += 1) {
-      writer.enqueue(n, [trade(n)], []);
+      writer.enqueue(n, { trades: [trade(n)] });
     }
     await writer.drain();
 
@@ -202,7 +202,7 @@ describe("PersistenceWriter", () => {
     const writer = new PersistenceWriter(sink, { ...quiet, flushIntervalMs: 20 });
     writer.start();
 
-    writer.enqueue(1, [trade(1)], []);
+    writer.enqueue(1, { trades: [trade(1)] });
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     expect(sink.tradeIds()).toEqual(["trd_1"]);
@@ -214,7 +214,7 @@ describe("PersistenceWriter", () => {
     const writer = new PersistenceWriter(sink, { ...quiet, maxBatchSize: 10 });
 
     for (let n = 1; n <= 35; n += 1) {
-      writer.enqueue(n, [trade(n)], []);
+      writer.enqueue(n, { trades: [trade(n)] });
     }
     await writer.close();
 
@@ -227,7 +227,7 @@ describe("PersistenceWriter", () => {
     sink.failuresRemaining = 100;
     const writer = new PersistenceWriter(sink, quiet);
 
-    writer.enqueue(1, [trade(1)], []);
+    writer.enqueue(1, { trades: [trade(1)] });
     await writer.close();
 
     expect(writer.pending()).toBe(1);

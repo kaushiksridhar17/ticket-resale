@@ -3,14 +3,21 @@ import { FileEventLog, type LogEntry } from "./eventLog.js";
 import { EventRegistry } from "./events/registry.js";
 import { symbolFor, type EventDefinition } from "./events/types.js";
 import { TicketRegistry } from "./tickets/registry.js";
-import type { Ticket } from "./tickets/types.js";
+import type { Ticket, TicketTransfer } from "./tickets/types.js";
+import type { PersistenceChanges } from "./db/writer.js";
 import type { Command } from "./commands.js";
 import type { Order, Side, Trade } from "./types.js";
 
 const STARTING_CASH = 100_000_00;
 
 export interface PersistenceTarget {
-  enqueue(logSeq: number, trades: Trade[], orders: Order[]): void;
+  enqueue(logSeq: number, changes: PersistenceChanges): void;
+}
+
+interface AppliedOrder {
+  result: SubmitResult;
+  tickets: Ticket[];
+  transfers: TicketTransfer[];
 }
 
 export interface ExchangeStateOptions {
@@ -88,6 +95,7 @@ export class ExchangeState {
     this.events.create(event);
     this.ensureAccount(event.organizerId);
     this.log?.append({ kind: "createEvent", event: structuredClone(event) });
+    this.persistence?.enqueue(this.logPosition(), { events: [event] });
     return event;
   }
 
@@ -109,7 +117,7 @@ export class ExchangeState {
     const holder = toUserId ?? ref.event.organizerId;
     this.ensureAccount(holder);
     this.exchange.accounts.credit(holder, symbol, count);
-    this.tickets.issue(symbol, count, holder);
+    const issued = this.tickets.issue(symbol, count, holder);
     this.events.recordIssued(symbol, count);
     this.log?.append({
       kind: "issueTickets",
@@ -118,6 +126,7 @@ export class ExchangeState {
       count,
       toUserId: holder,
     });
+    this.persistIssued(this.logPosition(), issued);
 
     return this.events.issuedCount(symbol);
   }
@@ -129,6 +138,7 @@ export class ExchangeState {
     }
     this.cancelResting(eventId);
     this.log?.append({ kind: "closeSales", eventId });
+    this.persistence?.enqueue(this.logPosition(), { events: [event] });
     return event;
   }
 
@@ -139,20 +149,21 @@ export class ExchangeState {
     }
     this.cancelResting(eventId);
     this.log?.append({ kind: "cancelEvent", eventId });
+    this.persistence?.enqueue(this.logPosition(), { events: [event] });
     return event;
   }
 
   submitOrder(order: Order): SubmitResult {
     this.checkTicketRules(order);
-    const result = this.apply(order);
-    this.persist(this.logPosition(), result.order, result.trades);
-    return result;
+    const applied = this.apply(order);
+    this.persist(this.logPosition(), applied);
+    return applied.result;
   }
 
   cancelOrder(symbol: string, orderId: string): Order | null {
     const order = this.exchange.cancel(symbol, orderId);
     if (order) {
-      this.persistence?.enqueue(this.logPosition(), [], [order]);
+      this.persistence?.enqueue(this.logPosition(), { orders: [order] });
     }
     return order;
   }
@@ -305,34 +316,50 @@ export class ExchangeState {
       ) {
         const cancelled = this.exchange.cancel(order.symbol, order.id);
         if (cancelled) {
-          this.persistence?.enqueue(this.logPosition(), [], [cancelled]);
+          this.persistence?.enqueue(this.logPosition(), { orders: [cancelled] });
         }
       }
     }
   }
 
-  private apply(order: Order): SubmitResult {
+  private apply(order: Order): AppliedOrder {
     const result = this.exchange.submit(order);
+    const tickets: Ticket[] = [];
+    const transfers: TicketTransfer[] = [];
+
     for (const trade of result.trades) {
-      this.tickets.transfer(
+      const moved = this.tickets.transfer(
         trade.symbol,
         trade.sellUserId,
         trade.buyUserId,
         trade.quantity
       );
+      for (const ticket of moved) {
+        tickets.push({ ...ticket });
+        transfers.push({
+          ticketId: ticket.id,
+          rotation: ticket.rotation,
+          symbol: ticket.symbol,
+          fromUserId: trade.sellUserId,
+          toUserId: trade.buyUserId,
+          tradeId: trade.id,
+        });
+      }
     }
+
     this.recordOrder(result.order);
     this.recordTrades(result.trades);
-    return result;
+    return { result, tickets, transfers };
   }
 
-  private persist(logSeq: number, taker: Order, trades: Trade[]): void {
+  private persist(logSeq: number, applied: AppliedOrder): void {
     if (!this.persistence) {
       return;
     }
 
-    const touched = new Map<string, Order>([[taker.id, taker]]);
-    for (const trade of trades) {
+    const { result } = applied;
+    const touched = new Map<string, Order>([[result.order.id, result.order]]);
+    for (const trade of result.trades) {
       for (const orderId of [trade.buyOrderId, trade.sellOrderId]) {
         const order = this.orders.get(orderId);
         if (order) {
@@ -341,7 +368,30 @@ export class ExchangeState {
       }
     }
 
-    this.persistence.enqueue(logSeq, trades, [...touched.values()]);
+    this.persistence.enqueue(logSeq, {
+      trades: result.trades,
+      orders: [...touched.values()],
+      tickets: applied.tickets,
+      transfers: applied.transfers,
+    });
+  }
+
+  private persistIssued(logSeq: number, issued: Ticket[]): void {
+    if (!this.persistence || issued.length === 0) {
+      return;
+    }
+
+    this.persistence.enqueue(logSeq, {
+      tickets: issued,
+      transfers: issued.map((ticket) => ({
+        ticketId: ticket.id,
+        rotation: ticket.rotation,
+        symbol: ticket.symbol,
+        fromUserId: null,
+        toUserId: ticket.holderId,
+        tradeId: null,
+      })),
+    });
   }
 
   private recover(entries: LogEntry[]): void {
@@ -359,6 +409,10 @@ export class ExchangeState {
         if (eventMatch) {
           highestEvent = Math.max(highestEvent, Number(eventMatch[1]));
         }
+        if (shouldPersist && this.persistence) {
+          this.persistence.enqueue(entry.seq, { events: [command.event] });
+          this.requeuedCount += 1;
+        }
         continue;
       }
 
@@ -366,25 +420,29 @@ export class ExchangeState {
         const symbol = symbolFor(command.eventId, command.tierId);
         this.ensureAccount(command.toUserId);
         this.exchange.accounts.credit(command.toUserId, symbol, command.count);
-        this.tickets.issue(symbol, command.count, command.toUserId);
+        const issued = this.tickets.issue(symbol, command.count, command.toUserId);
         this.events.recordIssued(symbol, command.count);
+        if (shouldPersist && this.persistence) {
+          this.persistIssued(entry.seq, issued);
+          this.requeuedCount += 1;
+        }
         continue;
       }
 
-      if (command.kind === "closeSales") {
-        this.events.setStatus(command.eventId, "closed");
-        continue;
-      }
-
-      if (command.kind === "cancelEvent") {
-        this.events.setStatus(command.eventId, "cancelled");
+      if (command.kind === "closeSales" || command.kind === "cancelEvent") {
+        const status = command.kind === "closeSales" ? "closed" : "cancelled";
+        const event = this.events.setStatus(command.eventId, status);
+        if (event && shouldPersist && this.persistence) {
+          this.persistence.enqueue(entry.seq, { events: [event] });
+          this.requeuedCount += 1;
+        }
         continue;
       }
 
       if (command.kind === "cancel") {
         const cancelled = this.exchange.cancel(command.symbol, command.orderId);
         if (cancelled && shouldPersist && this.persistence) {
-          this.persistence.enqueue(entry.seq, [], [cancelled]);
+          this.persistence.enqueue(entry.seq, { orders: [cancelled] });
           this.requeuedCount += 1;
         }
         continue;
@@ -399,9 +457,9 @@ export class ExchangeState {
       this.ensureAccount(order.userId);
 
       try {
-        const result = this.apply(order);
+        const applied = this.apply(order);
         if (shouldPersist && this.persistence) {
-          this.persist(entry.seq, result.order, result.trades);
+          this.persist(entry.seq, applied);
           this.requeuedCount += 1;
         }
       } catch {

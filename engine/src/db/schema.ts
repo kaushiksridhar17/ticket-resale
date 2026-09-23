@@ -44,6 +44,57 @@ CREATE TABLE IF NOT EXISTS persistence_state (
   key TEXT PRIMARY KEY,
   value BIGINT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  organizer_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  venue TEXT NOT NULL,
+  starts_at TIMESTAMPTZ NOT NULL,
+  sales_close_at TIMESTAMPTZ NOT NULL,
+  payment_mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS events_organizer ON events (organizer_id);
+
+CREATE TABLE IF NOT EXISTS event_tiers (
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  tier_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  face_value_cents INTEGER NOT NULL,
+  per_person_limit INTEGER NOT NULL,
+  PRIMARY KEY (event_id, tier_id)
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+  id TEXT PRIMARY KEY,
+  symbol TEXT NOT NULL,
+  serial INTEGER NOT NULL,
+  holder_id TEXT NOT NULL,
+  rotation INTEGER NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS tickets_symbol_serial
+  ON tickets (symbol, serial);
+
+CREATE INDEX IF NOT EXISTS tickets_holder ON tickets (holder_id, symbol);
+
+CREATE TABLE IF NOT EXISTS ticket_transfers (
+  ticket_id TEXT NOT NULL,
+  rotation INTEGER NOT NULL,
+  symbol TEXT NOT NULL,
+  from_user_id TEXT,
+  to_user_id TEXT NOT NULL,
+  trade_id TEXT,
+  PRIMARY KEY (ticket_id, rotation)
+);
+
+CREATE INDEX IF NOT EXISTS ticket_transfers_holder
+  ON ticket_transfers (to_user_id);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
