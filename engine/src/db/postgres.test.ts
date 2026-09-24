@@ -30,7 +30,7 @@ const BASE_MS = Date.UTC(2026, 0, 1);
 function trade(sequence: number, overrides: Partial<Trade> = {}): Trade {
   return {
     id: `trd_${sequence}`,
-    symbol: "ACME",
+    symbol: "evt_demo:GA",
     priceInCents: 5000,
     quantity: 10,
     buyOrderId: `ord_b${sequence}`,
@@ -48,7 +48,7 @@ function order(id: string, overrides: Partial<Order> = {}): Order {
   return {
     id,
     userId: "alice",
-    symbol: "ACME",
+    symbol: "evt_demo:GA",
     side: "buy",
     type: "limit",
     priceInCents: 5000,
@@ -155,19 +155,19 @@ describe.skipIf(!url)("postgres integration", () => {
     const sink = new PostgresSink(db);
     const trades = Array.from({ length: 10 }, (_, i) => trade(i + 1));
     await sink.write(fullBatch({
-      trades: [...trades, trade(99, { symbol: "ZENX" })],
+      trades: [...trades, trade(99, { symbol: "evt_other:GA" })],
       orders: [],
       lastLogSeq: 1,
     }));
 
-    const first = await tradeHistory(db, "ACME", 4, null);
-    const second = await tradeHistory(db, "ACME", 4, first[3]!.sequence);
-    const third = await tradeHistory(db, "ACME", 4, second[3]!.sequence);
+    const first = await tradeHistory(db, "evt_demo:GA", 4, null);
+    const second = await tradeHistory(db, "evt_demo:GA", 4, first[3]!.sequence);
+    const third = await tradeHistory(db, "evt_demo:GA", 4, second[3]!.sequence);
 
     expect(first.map((t) => t.sequence)).toEqual([10, 9, 8, 7]);
     expect(second.map((t) => t.sequence)).toEqual([6, 5, 4, 3]);
     expect(third.map((t) => t.sequence)).toEqual([2, 1]);
-    expect([...first, ...second, ...third].every((t) => t.symbol === "ACME")).toBe(
+    expect([...first, ...second, ...third].every((t) => t.symbol === "evt_demo:GA")).toBe(
       true
     );
   });

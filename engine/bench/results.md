@@ -30,7 +30,7 @@ Reproduce: `npm run bench`
 
 ## The ticket drop, end to end
 
-This is the one that matters. It starts a real engine, signs in ten
+This is the one that matters. It starts a real engine, creates ten
 thousand separate accounts over HTTP, releases two thousand tickets,
 and has all ten thousand claim at the same moment. Every request is a
 genuine authenticated call through Fastify, the matching engine, and
@@ -57,7 +57,7 @@ at the boundary. Nobody who arrived later jumped the queue, and no
 ticket was handed to two people or lost. The benchmark exits non-zero
 if either property fails, so it is a test as much as a measurement.
 
-Latency is higher here than in the API numbers above because ten
+Latency is higher here than the in-process numbers above because ten
 thousand accounts are hitting one process from one machine, and the
 load generator is competing with the server for the same cores. The
 engine's own share of each request stays in the microseconds; the wait
@@ -70,12 +70,3 @@ Knobs: `FANS`, `TICKETS`, `CONCURRENCY`.
 ```bash
 FANS=10000 TICKETS=2000 CONCURRENCY=400 npm run bench:drop
 ```
-
-## What was removed
-
-There were two k6 scripts here that fired anonymous orders at ACME,
-ZENX and ORBT. They stopped being meaningful when the project became a
-ticket platform: every order now needs a session, and a stream of
-random buys and sells at random prices does not describe anything
-anyone does with a ticket. The drop benchmark replaces them, and
-verifies fairness rather than only counting requests.

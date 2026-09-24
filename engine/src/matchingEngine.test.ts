@@ -100,7 +100,7 @@ describe("MatchingEngine", () => {
   it("keeps symbols isolated from each other", () => {
     engine.submit(makeOrder("alice", "sell", "limit", 5050, 100, SYMBOL));
     const result = engine.submit(
-      makeOrder("bob", "buy", "limit", 5050, 100, "ZENX")
+      makeOrder("bob", "buy", "limit", 5050, 100, "evt_other:GA")
     );
 
     expect(result.trades).toHaveLength(0);

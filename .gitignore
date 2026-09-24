@@ -145,6 +145,13 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-# Exchange event log
+# Event log and uploaded evidence
 data/
 *.jsonl
+
+# Test runner output
+.vitest/
+
+# Editor and agent scratch files
+AGENTS.md
+CLAUDE.md

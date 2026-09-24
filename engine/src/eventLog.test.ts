@@ -28,7 +28,7 @@ function generateCommands(count: number, seed: number): Command[] {
     if (restingIds.length > 0 && random() < 0.15) {
       const index = Math.floor(random() * restingIds.length);
       const orderId = restingIds.splice(index, 1)[0]!;
-      commands.push({ kind: "cancel", symbol: "ACME", orderId });
+      commands.push({ kind: "cancel", symbol: "evt_demo:GA", orderId });
       continue;
     }
 
@@ -41,7 +41,7 @@ function generateCommands(count: number, seed: number): Command[] {
     const order: Order = {
       id: `ord_${i}`,
       userId: users[Math.floor(random() * users.length)]!,
-      symbol: "ACME",
+      symbol: "evt_demo:GA",
       side,
       type,
       priceInCents,

@@ -38,7 +38,7 @@ class FakeSink implements PersistenceSink {
 function trade(n: number): Trade {
   return {
     id: `trd_${n}`,
-    symbol: "ACME",
+    symbol: "evt_demo:GA",
     priceInCents: 5000,
     quantity: 10,
     buyOrderId: `ord_b${n}`,
@@ -59,7 +59,7 @@ function order(
   return {
     id,
     userId: "alice",
-    symbol: "ACME",
+    symbol: "evt_demo:GA",
     side: "buy",
     type: "limit",
     priceInCents: 5000,
