@@ -76,13 +76,13 @@ export function registerEventRoutes(
         const symbol = symbolFor(event.id, tier.tierId);
         const tickets = state.tickets.forSymbol(symbol);
         const holders = new Set<string>();
-        let withOrganizer = 0;
+        let unsold = 0;
         let passedOn = 0;
 
         for (const ticket of tickets) {
           holders.add(ticket.holderId);
           if (ticket.holderId === event.organizerId) {
-            withOrganizer += 1;
+            unsold += 1;
           }
           if (ticket.rotation >= 2) {
             passedOn += 1;
@@ -95,8 +95,8 @@ export function registerEventRoutes(
           symbol,
           faceValueInCents: tier.faceValueInCents,
           issued: tickets.length,
-          withOrganizer,
-          withFans: tickets.length - withOrganizer,
+          unsold,
+          sold: tickets.length - unsold,
           passedOn,
           holders: holders.size,
           forSale: state.restingQuantity(symbol, "sell"),

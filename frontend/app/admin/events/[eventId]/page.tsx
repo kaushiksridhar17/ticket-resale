@@ -77,7 +77,7 @@ export default function ManageEventPage() {
     return (
       <div>
         <p className="font-display text-2xl">{error}</p>
-        <Link href="/organize" className="eyebrow mt-4 inline-block text-muted">
+        <Link href="/admin" className="eyebrow mt-4 inline-block text-muted">
           ← Your events
         </Link>
       </div>
@@ -93,7 +93,7 @@ export default function ManageEventPage() {
 
   return (
     <div>
-      <Link href="/organize" className="eyebrow text-muted hover:text-ink">
+      <Link href="/admin" className="eyebrow text-muted hover:text-ink">
         ← Your events
       </Link>
 
@@ -164,8 +164,8 @@ function TierAdmin({
 
       <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
         <Stat label="Printed" value={tier.issued} />
-        <Stat label="Out with fans" value={tier.withFans} />
-        <Stat label="Still yours" value={tier.withOrganizer} />
+        <Stat label="Out there" value={tier.sold} />
+        <Stat label="Still yours" value={tier.unsold} />
         <Stat label="People holding" value={tier.holders} />
         <Stat label="Up for resale" value={tier.forSale} />
         <Stat label="Queueing" value={tier.waiting} />
@@ -175,7 +175,7 @@ function TierAdmin({
       {canAct && (
         <div className="mt-8 grid gap-8 sm:grid-cols-2">
           <IssueForm eventId={eventId} tier={tier} onChanged={onChanged} />
-          {tier.withOrganizer > 0 && (
+          {tier.unsold > 0 && (
             <ReleaseForm tier={tier} onChanged={onChanged} />
           )}
         </div>
@@ -290,8 +290,8 @@ function ReleaseForm({
       setError("How many?");
       return;
     }
-    if (quantity > tier.withOrganizer) {
-      setError(`You only have ${tier.withOrganizer}`);
+    if (quantity > tier.unsold) {
+      setError(`You only have ${tier.unsold}`);
       return;
     }
 
@@ -328,7 +328,7 @@ function ReleaseForm({
           value={count}
           onChange={(field) => setCount(field.target.value)}
           inputMode="numeric"
-          placeholder={String(tier.withOrganizer)}
+          placeholder={String(tier.unsold)}
           className="w-20 border border-rule bg-card px-3 py-2.5 text-sm outline-none placeholder:text-rule focus:border-ink"
         />
         <input

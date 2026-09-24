@@ -126,8 +126,8 @@ export interface TierReport {
   symbol: string;
   faceValueInCents: number;
   issued: number;
-  withOrganizer: number;
-  withFans: number;
+  unsold: number;
+  sold: number;
   passedOn: number;
   holders: number;
   forSale: number;

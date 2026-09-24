@@ -26,6 +26,12 @@ One button does both jobs. If a ticket is spare you get it; if not, your
 request rests in the book and holds your place. Buying and queueing are
 the same order behaving differently depending on whether supply exists.
 
+The listing sorts by date or price and narrows by price range, date range,
+or whether anything is actually spare. Whatever you pick lands in the URL,
+so a filtered view can be sent to somebody.
+
+![Filtering](docs/images/filters.png)
+
 ## Fairness, demonstrated
 
 `npm run bench:drop` starts an engine, signs in ten thousand accounts over
@@ -69,6 +75,12 @@ refused even inside its 30 seconds.
 
 ![Refused](docs/images/door-refused.png)
 
+A ticket you have put back up for somebody else stops producing a pass
+while it waits, because it is already spoken for. Withdraw and it works
+again. Otherwise you could sell a ticket and still walk in on it.
+
+![Your tickets](docs/images/tickets.png)
+
 ## Accounts
 
 There is one admin, who puts on the events, approves what sellers submit
@@ -95,6 +107,8 @@ in the browser, so the theme you pick follows you to another machine. A
 small script applies the remembered theme before the first paint, so the
 page does not start light and turn dark once the account has loaded.
 
+![Settings](docs/images/settings-dark.png)
+
 The admin is not created through the site at all, which is why the site
 never offers it as a choice. It comes from `engine/admin.json`, or from
 `ADMIN_EMAIL` and `ADMIN_PASSWORD`, and it is only created the first time
@@ -115,9 +129,13 @@ straight onto the book at the face value the admin set for that tier, in
 the same queue as the venue's own stock and behind anything already
 waiting. Turning it down creates nothing.
 
+![Selling](docs/images/sell.png)
+
 That is the whole answer to a question this project cannot dodge. There is
 no way to check a ticket is real by machine, so a person looks, and the
 face value comes from the event rather than from whoever is selling.
+
+![The queue](docs/images/listings.png)
 
 Photos are stored outside the log under names the server chooses, checked
 by their first bytes rather than by what the file claims to be, and handed
@@ -147,7 +165,7 @@ Seeding runs through the same path a person's click does, so it lands in
 the event log rather than in the database, and it skips anything already
 there. Restarting does not print a second set of tickets.
 
-![Admin](docs/images/organizer.png)
+![Admin](docs/images/admin.png)
 
 Printing and releasing are separate because they are separate decisions.
 Releasing places a sell order, so the initial on-sale and every later
@@ -225,18 +243,22 @@ and return; rows are written in batches behind them.
 
 Money is counted in integer cents. Order arrival is decided by a sequence
 number rather than a timestamp, because two requests can share a
-millisecond. Tickets are reserved when a seller lists them, so the same
-ticket cannot be offered twice. Ticket rules are checked when an order is
-submitted and never on replay, so a log replayed after the sales cutoff is
-not rejected by it. Book updates are coalesced to 100ms.
+millisecond. Tickets are reserved when somebody puts them up, so the same
+ticket cannot be offered twice and cannot open a door while it waits.
+Ticket rules are checked when an order is submitted and never on replay,
+so a log replayed after the sales cutoff is not rejected by it. Book
+updates are coalesced to 100ms.
+
+Approving a submitted ticket counts it as issued for that event, which
+nudges the printed figure above what the venue itself printed. That is the
+honest way to record a real ticket entering the system, and it is worth
+knowing before reading the numbers on an event.
 
 ## Tests
 
 ```bash
 cd engine && npm test
 ```
-
-![Tests](docs/images/tests.png)
 
 365 of them, including property-based tests over thousands of randomised
 order sequences: tickets are never duplicated or lost, every account's
@@ -250,6 +272,12 @@ The Postgres integration tests skip unless a database is configured:
 docker compose up -d db
 docker compose exec db createdb -U facevalue facevalue_test
 TEST_DATABASE_URL=postgres://facevalue:facevalue@localhost:5432/facevalue_test npm test
+```
+
+The frontend has its own, covering the sorting and filtering rules:
+
+```bash
+cd frontend && npm test
 ```
 
 ## Layout
@@ -266,7 +294,15 @@ engine/
     auth/               passwords, sessions, accounts, settings
     db/                 batched writer, migrations, Postgres schema
   bench/                engine throughput and the drop benchmark
-frontend/               Next.js, one page per thing you can do
+frontend/
+  app/
+    page.tsx            what is on, with sorting and filtering
+    events/[eventId]/   claim, queue, or pass one on
+    tickets/            what you hold, and the door pass for each
+    sell/               submit a ticket and watch for the decision
+    admin/              events, the approval queue, reports
+    door/               the scanner
+    settings/           buying and selling, appearance, password
 ```
 
 ## Built with

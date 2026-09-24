@@ -55,7 +55,7 @@ export default function OrganizePage() {
       <div className="flex items-end justify-between gap-6">
         <h1 className="font-display text-4xl leading-tight">Your events</h1>
         <Link
-          href="/organize/new"
+          href="/admin/events/new"
           className="eyebrow shrink-0 bg-accent px-5 py-3 text-paper transition hover:bg-ink"
         >
           Put on an event
@@ -78,7 +78,7 @@ export default function OrganizePage() {
             return (
               <li key={event.id} className="border-b border-rule">
                 <Link
-                  href={`/organize/${event.id}`}
+                  href={`/admin/events/${event.id}`}
                   className="group -mx-4 flex items-baseline justify-between gap-6 px-4 py-6 transition hover:bg-card"
                 >
                   <div>

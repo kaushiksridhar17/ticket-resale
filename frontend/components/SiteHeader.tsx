@@ -14,8 +14,8 @@ function linksFor(user: User | null) {
   if (user?.role === "admin") {
     return [
       { href: "/", label: "Events" },
-      { href: "/organize", label: "Admin" },
-      { href: "/organize/listings", label: "Submitted" },
+      { href: "/admin", label: "Admin" },
+      { href: "/admin/listings", label: "Submitted" },
       { href: "/door", label: "The door" },
     ];
   }

@@ -401,8 +401,8 @@ describe("event and ticket routes", () => {
     const tier = response.json().tiers[0];
     expect(tier).toMatchObject({
       issued: 6,
-      withOrganizer: 4,
-      withFans: 2,
+      unsold: 4,
+      sold: 2,
       passedOn: 0,
       holders: 2,
       forSale: 1,
@@ -446,8 +446,8 @@ describe("event and ticket routes", () => {
     });
 
     expect(response.json().tiers[0]).toMatchObject({
-      withOrganizer: 3,
-      withFans: 1,
+      unsold: 3,
+      sold: 1,
       passedOn: 1,
     });
   });

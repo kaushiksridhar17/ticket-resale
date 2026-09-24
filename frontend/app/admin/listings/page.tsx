@@ -69,7 +69,7 @@ export default function ListingsPage() {
     <div>
       <div className="flex items-end justify-between gap-6">
         <h1 className="font-display text-4xl leading-tight">Submitted tickets</h1>
-        <Link href="/organize" className="eyebrow shrink-0 text-muted hover:text-accent">
+        <Link href="/admin" className="eyebrow shrink-0 text-muted hover:text-accent">
           Events
         </Link>
       </div>

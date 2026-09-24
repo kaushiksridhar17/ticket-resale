@@ -244,7 +244,7 @@ Type it instead
 
       <p className="mt-10 text-xs text-muted">
         Passes last thirty seconds.{" "}
-        <Link href="/organize" className="underline underline-offset-4">
+        <Link href="/admin" className="underline underline-offset-4">
           Admin
         </Link>{" "}
         show who holds what.

@@ -37,7 +37,7 @@ export default function NewEventPage() {
       <p className="text-sm text-muted">
         You do not have access to this page.{" "}
         <Link
-          href="/organize"
+          href="/admin"
           className="text-ink underline decoration-accent underline-offset-4"
         >
           More about that
@@ -123,7 +123,7 @@ export default function NewEventPage() {
         salesCloseAt,
         tiers: prepared,
       });
-      router.push(`/organize/${result.event.id}`);
+      router.push(`/admin/events/${result.event.id}`);
     } catch (caught) {
       setError(
         caught instanceof ApiError ? caught.message : "Couldn\u2019t put that on"
@@ -134,7 +134,7 @@ export default function NewEventPage() {
 
   return (
     <div className="max-w-2xl">
-      <Link href="/organize" className="eyebrow text-muted hover:text-ink">
+      <Link href="/admin" className="eyebrow text-muted hover:text-ink">
         ← Your events
       </Link>
       <h1 className="mt-6 font-display text-4xl leading-tight">
