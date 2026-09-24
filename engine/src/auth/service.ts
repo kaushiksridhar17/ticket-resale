@@ -117,6 +117,10 @@ export class AuthService {
     });
   }
 
+  async findByEmail(email: string): Promise<User | null> {
+    return this.store.findUserByEmail(normalizeEmail(email));
+  }
+
   async resolveToken(token: string | undefined): Promise<User | null> {
     if (!token) {
       return null;

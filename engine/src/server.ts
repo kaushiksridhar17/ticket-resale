@@ -18,6 +18,7 @@ import { PostgresAuthStore } from "./auth/postgresStore.js";
 import { registerAuthPlugin, NotAllowed, NotAuthenticated } from "./auth/plugin.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import { bootstrapAdmin, findAdmin, type AdminDetails } from "./auth/bootstrap.js";
+import { readSeedFile, seedEvents, type SeedEvent } from "./events/seed.js";
 import type { Trade } from "./types.js";
 
 export interface ServerOptions {
@@ -27,7 +28,13 @@ export interface ServerOptions {
   databaseUrl?: string | null;
   authPepper?: string;
   admin?: AdminDetails | null;
+  seed?: SeedEvent[] | null;
   doorKey?: string;
+}
+
+function readConfiguredSeed(): SeedEvent[] | null {
+  const path = process.env.EVENTS_SEED_FILE ?? "events.seed.json";
+  return path.trim() === "" ? null : readSeedFile(path);
 }
 
 export async function buildServer(options: ServerOptions = {}) {
@@ -67,6 +74,28 @@ export async function buildServer(options: ServerOptions = {}) {
       ? options.admin
       : findAdmin(process.env.ADMIN_FILE ?? "admin.json");
   const adminEmail = await bootstrapAdmin(auth, admin);
+
+  const seeds =
+    options.seed !== undefined ? options.seed : readConfiguredSeed();
+
+  const catalogueOwner = adminEmail
+    ? await auth.findByEmail(adminEmail)
+    : admin
+      ? await auth.findByEmail(admin.email)
+      : null;
+
+  const seeded =
+    seeds && seeds.length > 0 && catalogueOwner
+      ? seedEvents(state, seeds, catalogueOwner.id)
+      : { created: [], skipped: [] };
+
+  if (seeds && seeds.length > 0 && !catalogueOwner) {
+    console.warn(
+      "There is a catalogue of events to seed but no admin to own it. " +
+        "Put an email and a password in admin.json, or in ADMIN_EMAIL and " +
+        "ADMIN_PASSWORD, and start again."
+    );
+  }
 
   const passes = new PassIssuer(
     options.doorKey ?? process.env.DOOR_KEY ?? "development-door-key"
@@ -114,5 +143,6 @@ export async function buildServer(options: ServerOptions = {}) {
     await database?.end();
   });
 
-  return { app, state, broadcaster, database, writer, auth, adminEmail };
+  return { app, state, broadcaster, database, writer, auth, adminEmail, seeded };
 }
+

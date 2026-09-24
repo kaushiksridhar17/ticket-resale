@@ -8,6 +8,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 COPY admin.jso[n] ./
+COPY events.seed.json ./
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

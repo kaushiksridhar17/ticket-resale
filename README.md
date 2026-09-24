@@ -84,6 +84,28 @@ The admin account is not created through the site. It comes from
 and it is only created the first time the engine starts with no admin
 already there.
 
+## The catalogue
+
+Face value only means something if somebody other than the seller sets it,
+so events are not something a seller can invent. They come from
+`engine/events.seed.json`, and the admin owns them.
+
+Eight of them ship with the project, covering a gig, a derby, a club night,
+a play, a festival and a free open evening, and between them the tiers run
+from nothing to fifty-five dollars. Dates are written as days from now
+rather than as calendar dates, so the catalogue is never out of date on a
+machine that clones this next year.
+
+Each tier says how many tickets to print and how many of those to put on
+sale straight away. The rest stay with the admin, so there is something to
+release later. Three tiers ship released at zero, which is what a sold-out
+event looks like: the only thing you can do is join the queue, and when the
+admin releases, the queue drains in the order people joined it.
+
+Seeding runs through the same path a person's click does, so it lands in
+the event log rather than in the database, and it skips anything already
+there. Restarting does not print a second set of tickets.
+
 ![Admin](docs/images/organizer.png)
 
 Printing and releasing are separate because they are separate decisions.
@@ -111,20 +133,27 @@ docker compose up --build
 ```
 
 Open http://localhost:3000 and sign in at the admin entrance with what you
-just put in `.env`. Everyone else creates their own account.
+just put in `.env`. Everyone else creates their own account. The catalogue
+is already there, with most of it on sale.
 
-Without Docker, run the engine and the frontend separately. The admin
-details come from a file instead:
+To run the engine and the frontend yourself with only the database in
+Docker, uncomment `DATABASE_URL` in `.env` and start that one container:
 
 ```bash
-cd engine
-cp admin.example.json admin.json
-npm install && npm run dev
+docker compose up -d db
+```
+
+```bash
+cd engine && npm install && npm run dev
 ```
 
 ```bash
 cd frontend && npm install && npm run dev
 ```
+
+The engine reads the same `.env`, so the admin details carry over. If you
+would rather keep them out of `.env`, put them in `engine/admin.json`
+instead, which is a copy of `engine/admin.example.json` and is gitignored.
 
 The engine keeps events in an append-only log on disk either way, but
 accounts only survive a restart when a database is configured, and it
@@ -167,7 +196,7 @@ cd engine && npm test
 
 ![Tests](docs/images/tests.png)
 
-296 of them, including property-based tests over thousands of randomised
+312 of them, including property-based tests over thousands of randomised
 order sequences: tickets are never duplicated or lost, every account's
 serial count matches its balance, total hand-overs equal total quantity
 traded, and the same sequence of orders always produces the same
@@ -188,7 +217,7 @@ engine/
   src/
     matchingEngine.ts   price-time priority, one book per tier
     exchangeState.ts    rules, log, recovery
-    events/             events and tiers
+    events/             events, tiers, and the seeded catalogue
     tickets/            serials and chain of custody
     door/               pass signing and scanning
     auth/               passwords, sessions, roles

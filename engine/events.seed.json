@@ -1,0 +1,196 @@
+{
+  "events": [
+    {
+      "id": "evt_hollow-coast",
+      "name": "Hollow Coast",
+      "venue": "The Brickworks",
+      "startsInDays": 24,
+      "salesCloseHoursBefore": 4,
+      "tiers": [
+        {
+          "tierId": "GA",
+          "name": "Standing",
+          "faceValueInCents": 2800,
+          "perPersonLimit": 4,
+          "print": 320,
+          "release": 300
+        },
+        {
+          "tierId": "BALC",
+          "name": "Balcony, seated",
+          "faceValueInCents": 3600,
+          "perPersonLimit": 2,
+          "print": 90,
+          "release": 84
+        }
+      ]
+    },
+    {
+      "id": "evt_paper-lanterns",
+      "name": "Paper Lanterns, farewell tour",
+      "venue": "Corn Exchange",
+      "startsInDays": 11,
+      "salesCloseHoursBefore": 6,
+      "tiers": [
+        {
+          "tierId": "GA",
+          "name": "Standing",
+          "faceValueInCents": 4200,
+          "perPersonLimit": 2,
+          "print": 180,
+          "release": 0
+        }
+      ]
+    },
+    {
+      "id": "evt_northfield-derby",
+      "name": "Northfield versus Ashgrove",
+      "venue": "Northfield Park",
+      "startsInDays": 17,
+      "salesCloseHoursBefore": 2,
+      "tiers": [
+        {
+          "tierId": "HOME",
+          "name": "Home end",
+          "faceValueInCents": 2200,
+          "perPersonLimit": 4,
+          "print": 600,
+          "release": 0
+        },
+        {
+          "tierId": "AWAY",
+          "name": "Away end",
+          "faceValueInCents": 2200,
+          "perPersonLimit": 4,
+          "print": 200,
+          "release": 200
+        },
+        {
+          "tierId": "STAND",
+          "name": "Main stand",
+          "faceValueInCents": 3800,
+          "perPersonLimit": 2,
+          "print": 150,
+          "release": 140
+        }
+      ]
+    },
+    {
+      "id": "evt_low-ceiling",
+      "name": "Low Ceiling, club night",
+      "venue": "Basement 14",
+      "startsInDays": 6,
+      "salesCloseHoursBefore": 3,
+      "tiers": [
+        {
+          "tierId": "EARLY",
+          "name": "Before midnight",
+          "faceValueInCents": 1200,
+          "perPersonLimit": 4,
+          "print": 250,
+          "release": 0
+        },
+        {
+          "tierId": "LATE",
+          "name": "After midnight",
+          "faceValueInCents": 1800,
+          "perPersonLimit": 4,
+          "print": 250,
+          "release": 205
+        }
+      ]
+    },
+    {
+      "id": "evt_two-drink-minimum",
+      "name": "Two Drink Minimum, stand-up",
+      "venue": "The Old Laundry",
+      "startsInDays": 9,
+      "salesCloseHoursBefore": 3,
+      "tiers": [
+        {
+          "tierId": "GA",
+          "name": "Unreserved seating",
+          "faceValueInCents": 1500,
+          "perPersonLimit": 6,
+          "print": 140,
+          "release": 140
+        }
+      ]
+    },
+    {
+      "id": "evt_glasshouse",
+      "name": "Glasshouse, a play in two acts",
+      "venue": "Rivergate Theatre",
+      "startsInDays": 31,
+      "salesCloseHoursBefore": 12,
+      "tiers": [
+        {
+          "tierId": "STALLS",
+          "name": "Stalls",
+          "faceValueInCents": 3200,
+          "perPersonLimit": 4,
+          "print": 220,
+          "release": 160
+        },
+        {
+          "tierId": "CIRCLE",
+          "name": "Dress circle",
+          "faceValueInCents": 4500,
+          "perPersonLimit": 4,
+          "print": 120,
+          "release": 95
+        },
+        {
+          "tierId": "RESTR",
+          "name": "Restricted view",
+          "faceValueInCents": 1400,
+          "perPersonLimit": 2,
+          "print": 40,
+          "release": 40
+        }
+      ]
+    },
+    {
+      "id": "evt_open-weekend",
+      "name": "Open Weekend at the Observatory",
+      "venue": "Hillcrest Observatory",
+      "startsInDays": 14,
+      "salesCloseHoursBefore": 24,
+      "tiers": [
+        {
+          "tierId": "GA",
+          "name": "Free entry",
+          "faceValueInCents": 0,
+          "perPersonLimit": 2,
+          "print": 300,
+          "release": 250
+        }
+      ]
+    },
+    {
+      "id": "evt_salt-flats",
+      "name": "Salt Flats, all-dayer",
+      "venue": "Quarry Field",
+      "startsInDays": 45,
+      "salesCloseHoursBefore": 48,
+      "tiers": [
+        {
+          "tierId": "DAY",
+          "name": "Day ticket",
+          "faceValueInCents": 5500,
+          "perPersonLimit": 4,
+          "print": 900,
+          "release": 700
+        },
+        {
+          "tierId": "CAMP",
+          "name": "Day ticket with camping",
+          "faceValueInCents": 7500,
+          "perPersonLimit": 4,
+          "print": 400,
+          "release": 400
+        }
+      ]
+    }
+  ]
+}

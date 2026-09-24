@@ -45,7 +45,7 @@ async function main() {
     }
   }
 
-  const { app, state, database, adminEmail } = await buildServer({
+  const { app, state, database, adminEmail, seeded } = await buildServer({
     logger: LOGGER,
     databaseUrl: DATABASE_URL,
     ...(LOG_PATH ? { logPath: LOG_PATH } : {}),
@@ -60,6 +60,14 @@ async function main() {
     );
     if (adminEmail) {
       console.log(`Admin account ready for ${adminEmail}`);
+    }
+    if (seeded.created.length > 0) {
+      console.log(
+        `Put on ${seeded.created.length} events from the catalogue, ` +
+          "tickets printed and waiting to be released"
+      );
+    } else if (seeded.skipped.length > 0) {
+      console.log(`${seeded.skipped.length} catalogue events already here`);
     }
     if (!DATABASE_URL) {
       console.warn(
