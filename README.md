@@ -16,25 +16,21 @@ price capped at face value. A cap turns the book into a queue: if nobody
 can outbid anybody, the only thing left to sort on is who asked first.
 That is price-time priority with the price dimension deliberately removed.
 
-Nothing is paid here. You claim a ticket and pay the venue on the night,
-which means there is no float to hold, no refunds to process, and nothing
-for a tout to make money on.
+Nothing is paid on the site. You claim a ticket and pay the venue on the
+night, so there is no float to hold, no refunds to process, and nothing for
+a tout to make money on.
 
 ![An event](docs/images/event.png)
 
 One button does both jobs. If a ticket is spare you get it; if not, your
-request rests in the book and holds your place. Buying and queueing are
-the same order behaving differently depending on whether supply exists.
-
-The listing sorts by date or price and narrows by price range, date range,
-or whether anything is actually spare. Whatever you pick lands in the URL,
-so a filtered view can be sent to somebody.
-
-![Filtering](docs/images/filters.png)
+request rests in the book and holds your place. Buying and queueing are the
+same order behaving differently depending on whether supply exists. The
+listing sorts by date or price and filters by price range, date range or
+availability, with the state in the URL so a view can be shared.
 
 ## Fairness, demonstrated
 
-`npm run bench:drop` starts an engine, signs in ten thousand accounts over
+`npm run bench:drop` starts an engine, creates ten thousand accounts over
 HTTP, releases two thousand tickets, and has everyone claim at once.
 
 ![Drop benchmark](docs/images/drop.png)
@@ -50,131 +46,104 @@ Almost all of that is queueing. Matching itself runs at 1.3 million orders
 a second, 0.40 us median, measured in-process by `npm run bench`. Full
 numbers in [`engine/bench/results.md`](engine/bench/results.md).
 
+## Accounts
+
+There is one admin, who puts on events, approves what sellers submit and
+works the door. Everybody else is a member holding two switches, buying and
+selling. The question is asked once, at sign-up, and either switch can be
+flipped later without making a second account.
+
+![Creating an account](docs/images/register.png)
+
+![Both switches on](docs/images/register-both.png)
+
+Buying covers claiming a ticket and joining a queue. Selling covers putting
+up a ticket you got somewhere else, which an admin has to approve. Passing
+on a ticket you already hold is gated by neither, because that ticket is
+already in the system and already verified.
+
+Everybody signs in at the same place. The account carries what it can do,
+so nobody declares anything, and the site sends you where you belong.
+Passwords are scrypt hashes and never leave the server. Settings live in
+Postgres rather than the browser, so the theme follows you to another
+machine; a small script applies it before the first paint.
+
+![Settings](docs/images/settings-dark.png)
+
+The admin is not created through the site, which is why the site never
+offers it as a choice. It comes from `engine/admin.json`, or from
+`ADMIN_EMAIL` and `ADMIN_PASSWORD`, and only when no admin exists yet. Out
+of the box that is `admin@example.com` with the password `admin-password`.
+
+## Putting up a ticket you cannot use
+
+A seller does not invent an event and does not name a price. They pick one
+from the catalogue, say how many they have, and attach a photo.
+
+![Selling](docs/images/sell.png)
+
+The admin sees the queue, looks at the photo, and approves or turns it down
+with a reason the seller reads. Approving is what brings the tickets into
+existence: issued in the seller's name and put on the book at the face
+value the admin set, behind anything already queueing. Turning it down
+creates nothing.
+
+![The queue](docs/images/listings.png)
+
+There is no way to check a ticket is real by machine, so a person looks,
+and the face value comes from the event rather than from whoever is
+selling. Photos are stored outside the log under names the server chooses,
+checked by their first bytes rather than by what the file claims to be, and
+handed only to the seller who uploaded them and to the admin.
+
+## The catalogue
+
+Face value only means something if somebody other than the seller sets it,
+so events come from `engine/events.seed.json` and the admin owns them.
+Eight ship with the project, a gig through to a free open evening, with
+tiers from nothing to fifty-five dollars. Dates are days from now rather
+than calendar dates, so the catalogue never goes stale.
+
+Each tier says how many tickets to print and how many to put on sale at
+once. Three ship released at zero, which is what sold out looks like: join
+the queue, and when the admin releases, it drains in order. Seeding runs
+through the same path a click does, so it lands in the event log and skips
+anything already there.
+
+![Admin](docs/images/admin.png)
+
+Printing and releasing are separate decisions. Releasing places a sell
+order, so the on-sale and every later resale run through the same book.
+"Passed on again" counts tickets that changed hands more than once; every
+hand-over records who had it, who has it now, and which trade moved it.
+
 ## The door
 
-Tickets are numbered and the number is real: each one is a distinct
-object with a holder and a count of how many times it has changed hands.
+Tickets are numbered and the number is real: each is a distinct object with
+a holder and a count of how many times it has changed hands.
 
 A door pass is `ticketId.rotation.slot.signature`, where `slot` is the
-current 30-second window and the signature is an HMAC over the other
-three. The phone refreshes it every 20 seconds.
+current 30-second window and the signature is an HMAC over the other three.
+The phone refreshes it every 20 seconds.
 
 ![A pass](docs/images/pass.png)
 
 Three things follow from what is inside the signature. A screenshot dies
-within about a minute, because the door only accepts the current slot and
+within about a minute, because the door accepts only the current slot and
 one either side. A pass stops working the moment the ticket is passed on,
-because the rotation counter moves and the old signature no longer
-matches. And nobody can forge one, because the key never leaves the
-server.
-
-A used ticket is also recorded as admitted, so the same pass twice is
-refused even inside its 30 seconds.
+because the rotation counter moves. And nobody can forge one, because the
+key never leaves the server. A used ticket is recorded as admitted, so the
+same pass twice is refused even inside its 30 seconds.
 
 ![Admitted](docs/images/door-admitted.png)
 
 ![Refused](docs/images/door-refused.png)
 
-A ticket you have put back up for somebody else stops producing a pass
-while it waits, because it is already spoken for. Withdraw and it works
-again. Otherwise you could sell a ticket and still walk in on it.
+A ticket you have put back up stops producing a pass while it waits, since
+it is already spoken for. Withdraw and it works again. Otherwise you could
+sell a ticket and still walk in on it.
 
 ![Your tickets](docs/images/tickets.png)
-
-## Accounts
-
-There is one admin, who puts on the events, approves what sellers submit
-and works the door. Everybody else is a member, and a member holds two
-switches: buying and selling. Most people want one of them, some want
-both, and nobody has to decide forever. Creating an account asks the
-question once, buying is on by default, and either switch can be flipped
-later without making a second account.
-
-Buying covers claiming a ticket and joining a queue. Selling covers
-putting up a ticket you got somewhere else, which is the thing an admin
-has to approve. Passing on a ticket you already hold is not gated by
-either, because that ticket is already in the system and already
-verified, and the whole point of the project is that a ticket you cannot
-use goes back to the queue.
-
-Everybody signs in at the same place with an email and a password. The
-account carries what it can do, so nobody is asked to declare anything,
-and the site sends you where you belong. Passwords are stored as scrypt
-hashes and never leave the server.
-
-Each account also carries its own settings, kept in Postgres rather than
-in the browser, so the theme you pick follows you to another machine. A
-small script applies the remembered theme before the first paint, so the
-page does not start light and turn dark once the account has loaded.
-
-![Settings](docs/images/settings-dark.png)
-
-The admin is not created through the site at all, which is why the site
-never offers it as a choice. It comes from `engine/admin.json`, or from
-`ADMIN_EMAIL` and `ADMIN_PASSWORD`, and it is only created the first time
-the engine starts with no admin already there. Out of the box that is
-`admin@example.com` with the password `admin-password`, which is fine for
-looking around and worth changing before the first run otherwise.
-
-## Putting up a ticket you cannot use
-
-A seller does not invent an event and does not name a price. They pick one
-out of the catalogue, say how many they have, and attach a photo of the
-ticket. It waits.
-
-The admin sees the queue, looks at the photo, and either approves it or
-turns it down with a reason the seller reads. Approving is what brings the
-tickets into existence: they are issued in the seller's name and go
-straight onto the book at the face value the admin set for that tier, in
-the same queue as the venue's own stock and behind anything already
-waiting. Turning it down creates nothing.
-
-![Selling](docs/images/sell.png)
-
-That is the whole answer to a question this project cannot dodge. There is
-no way to check a ticket is real by machine, so a person looks, and the
-face value comes from the event rather than from whoever is selling.
-
-![The queue](docs/images/listings.png)
-
-Photos are stored outside the log under names the server chooses, checked
-by their first bytes rather than by what the file claims to be, and handed
-out only to the seller who uploaded them and to the admin. Submissions and
-decisions go into the event log like everything else, so a restart still
-knows what is waiting and what was already decided.
-
-## The catalogue
-
-Face value only means something if somebody other than the seller sets it,
-so events are not something a seller can invent. They come from
-`engine/events.seed.json`, and the admin owns them.
-
-Eight of them ship with the project, covering a gig, a derby, a club night,
-a play, a festival and a free open evening, and between them the tiers run
-from nothing to fifty-five dollars. Dates are written as days from now
-rather than as calendar dates, so the catalogue is never out of date on a
-machine that clones this next year.
-
-Each tier says how many tickets to print and how many of those to put on
-sale straight away. The rest stay with the admin, so there is something to
-release later. Three tiers ship released at zero, which is what a sold-out
-event looks like: the only thing you can do is join the queue, and when the
-admin releases, the queue drains in the order people joined it.
-
-Seeding runs through the same path a person's click does, so it lands in
-the event log rather than in the database, and it skips anything already
-there. Restarting does not print a second set of tickets.
-
-![Admin](docs/images/admin.png)
-
-Printing and releasing are separate because they are separate decisions.
-Releasing places a sell order, so the initial on-sale and every later
-resale run through the same book. Anyone already queueing is filled
-immediately, in order.
-
-"Passed on again" counts tickets that have changed hands more than once.
-Every hand-over is recorded with who had it before, who has it now, and
-which trade moved it, so a ticket carries its own chain of custody.
 
 ## Running it
 
@@ -182,42 +151,25 @@ which trade moved it, so a ticket carries its own chain of custody.
 git clone https://github.com/kaushiksridhar17/ticket-resale.git
 cd ticket-resale
 cp .env.example .env
-```
-
-The copy comes with `admin@example.com` and `admin-password` already in it,
-so it runs as it is. Put your own address and password in `ADMIN_EMAIL` and
-`ADMIN_PASSWORD` if you would rather, then:
-
-```bash
 docker compose up --build
 ```
 
-Open http://localhost:3000 and sign in with those admin details. Everybody
-else creates their own account, as a customer or a seller. The catalogue is
-already there, with most of it on sale.
+`.env` ships with working admin details, so it runs as it is. Open
+http://localhost:3000 and sign in with them; everybody else creates their
+own account. The catalogue is already there, mostly on sale.
 
-To run the engine and the frontend yourself with only the database in
-Docker, uncomment `DATABASE_URL` in `.env` and start that one container:
+To run the engine and frontend yourself with only the database in Docker,
+uncomment `DATABASE_URL` in `.env`, then:
 
 ```bash
 docker compose up -d db
-```
-
-```bash
 cd engine && npm install && npm run dev
-```
-
-```bash
 cd frontend && npm install && npm run dev
 ```
 
-The engine reads the same `.env`, so the admin details carry over. If you
-would rather keep them out of `.env`, put them in `engine/admin.json`
-instead, which is a copy of `engine/admin.example.json` and is gitignored.
-
-The engine keeps events in an append-only log on disk either way, but
-accounts only survive a restart when a database is configured, and it
-says so on startup.
+The engine reads the same `.env`. Events survive in the log on disk either
+way, but accounts only survive a restart when a database is configured, and
+it says so on startup.
 
 ## How it holds together
 
@@ -232,12 +184,11 @@ Browser ──REST──▶ Fastify ──▶ Matching engine ──▶ Broadcas
 ```
 
 The log stores inputs, not outcomes. Because matching is deterministic,
-replaying the log reproduces the same market, verified by a SHA-256 digest
-over the resulting book. Postgres is a read model and can be rebuilt from
-the log at any time, which one of the integration tests does.
-
-Nothing in the claim path waits on the database. Orders match in memory
-and return; rows are written in batches behind them.
+replaying it reproduces the same market, verified by a SHA-256 digest over
+the resulting book. Postgres is a read model and can be rebuilt from the
+log at any time, which one of the integration tests does. Nothing in the
+claim path waits on the database: orders match in memory and return, rows
+are written in batches behind them.
 
 ## Decisions worth knowing about
 
@@ -245,14 +196,14 @@ Money is counted in integer cents. Order arrival is decided by a sequence
 number rather than a timestamp, because two requests can share a
 millisecond. Tickets are reserved when somebody puts them up, so the same
 ticket cannot be offered twice and cannot open a door while it waits.
-Ticket rules are checked when an order is submitted and never on replay,
-so a log replayed after the sales cutoff is not rejected by it. Book
-updates are coalesced to 100ms.
+Ticket rules are checked when an order is submitted and never on replay, so
+a log replayed after the sales cutoff is not rejected by it. Book updates
+are coalesced to 100ms.
 
 Approving a submitted ticket counts it as issued for that event, which
 nudges the printed figure above what the venue itself printed. That is the
-honest way to record a real ticket entering the system, and it is worth
-knowing before reading the numbers on an event.
+honest way to record a real ticket entering the system, and worth knowing
+before reading the numbers on an event.
 
 ## Tests
 
@@ -279,6 +230,16 @@ The frontend has its own, covering the sorting and filtering rules:
 ```bash
 cd frontend && npm test
 ```
+
+## Future work
+
+- Settlement between people. Nothing is paid on the site, so a seller
+  reimbursing themselves for a ticket bought elsewhere is not modelled.
+  Adding it brings refunds, disputes and reversals with it.
+- Suspending an account. The engine can do it and drops the sessions, but
+  there is no admin screen for it.
+- Telling a seller their listing was decided, rather than making them look.
+- Deployment. It runs locally and in Docker; there is no hosted instance.
 
 ## Layout
 
