@@ -1,17 +1,29 @@
 import type { FastifyInstance } from "fastify";
-import type { Role } from "./auth/types.js";
 
 export const TEST_PASSWORD = "test-password";
+
+export interface SignUpOptions {
+  buys?: boolean;
+  sells?: boolean;
+  password?: string;
+  displayName?: string;
+}
 
 export async function signUp(
   app: FastifyInstance,
   email: string,
-  role: Exclude<Role, "admin">
+  options: SignUpOptions = {}
 ): Promise<string> {
   const response = await app.inject({
     method: "POST",
     url: "/auth/register",
-    payload: { email, password: TEST_PASSWORD, role },
+    payload: {
+      email,
+      password: options.password ?? TEST_PASSWORD,
+      buys: options.buys ?? true,
+      sells: options.sells ?? false,
+      ...(options.displayName ? { displayName: options.displayName } : {}),
+    },
   });
   return sessionFrom(response, email);
 }

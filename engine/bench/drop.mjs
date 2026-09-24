@@ -40,7 +40,8 @@ async function register(email) {
   const response = await post("/auth/register", {
     email,
     password: PASSWORD,
-    role: "customer",
+    buys: true,
+    sells: false,
   });
   return sessionFrom(response, email);
 }

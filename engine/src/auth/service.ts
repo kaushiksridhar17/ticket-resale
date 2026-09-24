@@ -5,15 +5,19 @@ import type {
   NewUser,
   Role,
   SessionRecord,
+  Settings,
+  Theme,
   User,
   UserStatus,
 } from "./types.js";
+import { THEMES } from "./types.js";
 
 export type AuthErrorCode =
   | "invalid_email"
   | "weak_password"
   | "email_taken"
-  | "invalid_role"
+  | "nothing_chosen"
+  | "invalid_theme"
   | "wrong_credentials"
   | "suspended";
 
@@ -33,8 +37,18 @@ export interface AuthOptions {
 export interface Registration {
   email: string;
   password: string;
-  role: Role;
+  buys: boolean;
+  sells: boolean;
   displayName?: string | null;
+}
+
+interface NewAccount {
+  email: string;
+  password: string;
+  role: Role;
+  displayName: string | null;
+  buys: boolean;
+  sells: boolean;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,8 +74,8 @@ export class AuthService {
     if (!EMAIL.test(email) || email.length > 200) {
       throw new AuthError("invalid_email", "That does not look like an email address");
     }
-    if (registration.role !== "seller" && registration.role !== "customer") {
-      throw new AuthError("invalid_role", "Pick either a buying or a selling account");
+    if (!registration.buys && !registration.sells) {
+      throw new AuthError("nothing_chosen", "Pick at least one of buying or selling");
     }
     if (await this.store.findUserByEmail(email)) {
       throw new AuthError("email_taken", "There is already an account on that address");
@@ -70,8 +84,10 @@ export class AuthService {
     const user = await this.create({
       email,
       password: registration.password,
-      role: registration.role,
+      role: "member",
       displayName: registration.displayName ?? null,
+      buys: registration.buys,
+      sells: registration.sells,
     });
 
     return { token: await this.startSession(user), user };
@@ -79,8 +95,7 @@ export class AuthService {
 
   async logIn(
     rawEmail: string,
-    password: string,
-    expectedRole?: Role
+    password: string
   ): Promise<{ token: string; user: User }> {
     const email = normalizeEmail(rawEmail);
     const user = await this.store.findUserByEmail(email);
@@ -89,9 +104,6 @@ export class AuthService {
     const correct = stored ? await verifyPassword(password, stored) : false;
 
     if (!user || !correct) {
-      throw new AuthError("wrong_credentials", "That email and password do not match");
-    }
-    if (expectedRole && user.role !== expectedRole) {
       throw new AuthError("wrong_credentials", "That email and password do not match");
     }
     if (user.status === "suspended") {
@@ -114,6 +126,8 @@ export class AuthService {
       password,
       role: "admin",
       displayName,
+      buys: true,
+      sells: true,
     });
   }
 
@@ -143,6 +157,62 @@ export class AuthService {
     }
   }
 
+  async updateSettings(
+    userId: string,
+    changes: Partial<Settings>
+  ): Promise<User> {
+    const user = await this.store.getUser(userId);
+    if (!user) {
+      throw new AuthError("wrong_credentials", "That account no longer exists");
+    }
+
+    const settings: Settings = {
+      buys: changes.buys ?? user.buys,
+      sells: changes.sells ?? user.sells,
+      theme: changes.theme ?? user.theme,
+    };
+
+    if (user.role !== "admin" && !settings.buys && !settings.sells) {
+      throw new AuthError("nothing_chosen", "Pick at least one of buying or selling");
+    }
+    if (!THEMES.includes(settings.theme)) {
+      throw new AuthError("invalid_theme", "That is not a theme");
+    }
+
+    await this.store.setSettings(userId, settings);
+    return { ...user, ...settings };
+  }
+
+  async changePassword(
+    userId: string,
+    current: string,
+    next: string
+  ): Promise<string> {
+    const stored = await this.store.getPasswordHash(userId);
+    if (!stored || !(await verifyPassword(current, stored))) {
+      throw new AuthError("wrong_credentials", "That is not your current password");
+    }
+
+    let passwordHash: string;
+    try {
+      passwordHash = await hashPassword(next);
+    } catch (error) {
+      if (error instanceof WeakPassword) {
+        throw new AuthError("weak_password", error.message);
+      }
+      throw error;
+    }
+
+    await this.store.setPassword(userId, passwordHash);
+    await this.store.deleteSessionsFor(userId);
+
+    const user = await this.store.getUser(userId);
+    if (!user) {
+      throw new AuthError("wrong_credentials", "That account no longer exists");
+    }
+    return this.startSession(user);
+  }
+
   async setStatus(userId: string, status: UserStatus): Promise<void> {
     await this.store.setStatus(userId, status);
     if (status === "suspended") {
@@ -154,10 +224,10 @@ export class AuthService {
     return Math.floor(this.sessionTtlMs / 1000);
   }
 
-  private async create(registration: Required<Registration>): Promise<User> {
+  private async create(account: NewAccount): Promise<User> {
     let passwordHash: string;
     try {
-      passwordHash = await hashPassword(registration.password);
+      passwordHash = await hashPassword(account.password);
     } catch (error) {
       if (error instanceof WeakPassword) {
         throw new AuthError("weak_password", error.message);
@@ -167,10 +237,13 @@ export class AuthService {
 
     const user: NewUser = {
       id: `usr_${randomBytes(9).toString("base64url")}`,
-      email: registration.email,
-      displayName: registration.displayName,
-      role: registration.role,
+      email: account.email,
+      displayName: account.displayName,
+      role: account.role,
       status: "active",
+      buys: account.buys,
+      sells: account.sells,
+      theme: "system",
       createdAt: this.now(),
       passwordHash,
     };

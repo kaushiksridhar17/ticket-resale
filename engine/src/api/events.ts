@@ -39,6 +39,7 @@ export function registerEventRoutes(
 
   app.get("/tickets", async (request) => {
     const user = requireUser(request);
+    const reserved = state.reservedTicketIds(user.id);
 
     const tickets = state.ticketsHeldBy(user.id).map((ticket) => {
       const ref = state.events.resolve(ticket.symbol);
@@ -47,6 +48,7 @@ export function registerEventRoutes(
         symbol: ticket.symbol,
         serial: ticket.serial,
         rotation: ticket.rotation,
+        reserved: reserved.has(ticket.id),
         eventId: ref?.event.id ?? null,
         eventName: ref?.event.name ?? null,
         eventStatus: ref?.event.status ?? null,

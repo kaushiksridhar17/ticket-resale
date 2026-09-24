@@ -42,12 +42,9 @@ export default function OrganizePage() {
   if (!user || user.role !== "admin") {
     return (
       <div className="max-w-lg">
-        <h1 className="font-display text-4xl leading-tight">
-          This is the admin side
-        </h1>
-        <p className="mt-4 text-sm leading-relaxed text-muted">
-          Events are put on by the account that runs the site. Sign in as the
-          admin to see them.
+        <h1 className="font-display text-4xl leading-tight">Admin</h1>
+        <p className="mt-4 text-sm text-muted">
+          You do not have access to this page.
         </p>
       </div>
     );
@@ -69,7 +66,7 @@ export default function OrganizePage() {
         <p className="mt-10 text-sm text-muted">Loading</p>
       ) : events.length === 0 ? (
         <p className="mt-10 border-t border-rule pt-6 text-sm text-muted">
-          Nothing yet. Put one on and it shows up out front straight away.
+          No events yet.
         </p>
       ) : (
         <ul className="mt-8 border-t border-rule">

@@ -68,7 +68,9 @@ export default function ManageEventPage() {
   }
 
   if (!user || user.role !== "admin") {
-    return <p className="text-sm text-muted">Only the admin can see this.</p>;
+    return (
+      <p className="text-sm text-muted">You do not have access to this page.</p>
+    );
   }
 
   if (error) {
@@ -343,9 +345,6 @@ function ReleaseForm({
           {pending ? "Releasing" : "Release"}
         </button>
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-muted">
-        Straight to whoever&apos;s been waiting longest.
-      </p>
       {error && <p className="mt-2 text-sm text-accent">{error}</p>}
     </div>
   );

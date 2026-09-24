@@ -21,6 +21,7 @@ function fullBatch(
     events: [],
     tickets: [],
     transfers: [],
+    listings: [],
     ...partial,
   };
 }

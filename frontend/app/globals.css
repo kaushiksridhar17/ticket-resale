@@ -8,6 +8,31 @@
   --rule: #e4dccd;
   --accent: #c4411f;
   --accent-soft: #fbece7;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #14110d;
+    --card: #1d1914;
+    --ink: #f4efe6;
+    --muted: #a2988a;
+    --rule: #332c24;
+    --accent: #f0703f;
+    --accent-soft: #2c1a12;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #14110d;
+  --card: #1d1914;
+  --ink: #f4efe6;
+  --muted: #a2988a;
+  --rule: #332c24;
+  --accent: #f0703f;
+  --accent-soft: #2c1a12;
+  color-scheme: dark;
 }
 
 @theme inline {

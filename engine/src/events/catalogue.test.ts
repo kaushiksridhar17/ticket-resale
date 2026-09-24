@@ -139,7 +139,7 @@ describe("the seeded catalogue", () => {
     await app.ready();
 
     const admin = await signIn(app, ADMIN.email, ADMIN.password);
-    const customer = await signUp(app, "customer@example.com", "customer");
+    const customer = await signUp(app, "customer@example.com");
 
     await app.inject({
       method: "POST",

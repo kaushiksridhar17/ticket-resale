@@ -4,6 +4,8 @@ import type {
   NewUser,
   Role,
   SessionRecord,
+  Settings,
+  Theme,
   User,
   UserStatus,
 } from "./types.js";
@@ -14,6 +16,9 @@ interface UserRow {
   display_name: string | null;
   role: Role;
   status: UserStatus;
+  buys: boolean;
+  sells: boolean;
+  theme: Theme;
   created_at: Date;
 }
 
@@ -23,7 +28,8 @@ interface SessionRow {
   expires_at: Date;
 }
 
-const COLUMNS = "id, email, display_name, role, status, created_at";
+const COLUMNS =
+  "id, email, display_name, role, status, buys, sells, theme, created_at";
 
 export class PostgresAuthStore implements AuthStore {
   constructor(private readonly db: Database) {}
@@ -54,14 +60,18 @@ export class PostgresAuthStore implements AuthStore {
 
   async createUser(user: NewUser): Promise<void> {
     await this.db.query(
-      `INSERT INTO users (id, email, display_name, role, status, password_hash, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO users
+         (id, email, display_name, role, status, buys, sells, theme, password_hash, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         user.id,
         user.email,
         user.displayName,
         user.role,
         user.status,
+        user.buys,
+        user.sells,
+        user.theme,
         user.passwordHash,
         new Date(user.createdAt),
       ]
@@ -80,6 +90,13 @@ export class PostgresAuthStore implements AuthStore {
       userId,
       status,
     ]);
+  }
+
+  async setSettings(userId: string, settings: Settings): Promise<void> {
+    await this.db.query(
+      "UPDATE users SET buys = $2, sells = $3, theme = $4 WHERE id = $1",
+      [userId, settings.buys, settings.sells, settings.theme]
+    );
   }
 
   async countByRole(role: Role): Promise<number> {
@@ -136,6 +153,9 @@ function toUser(row: UserRow): User {
     displayName: row.display_name,
     role: row.role,
     status: row.status,
+    buys: row.buys,
+    sells: row.sells,
+    theme: row.theme,
     createdAt: row.created_at.getTime(),
   };
 }

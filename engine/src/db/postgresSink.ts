@@ -1,6 +1,7 @@
 import type { Database } from "./database.js";
 import type { PersistenceBatch, PersistenceSink } from "./writer.js";
 import type { EventDefinition } from "../events/types.js";
+import type { Listing } from "../listings/types.js";
 import type { Ticket, TicketTransfer } from "../tickets/types.js";
 import type { Order, Trade } from "../types.js";
 
@@ -30,6 +31,21 @@ const ORDER_COLUMNS = [
   "status",
   "sequence",
   "created_at",
+];
+
+const LISTING_COLUMNS = [
+  "id",
+  "seller_id",
+  "event_id",
+  "tier_id",
+  "quantity",
+  "note",
+  "evidence",
+  "status",
+  "submitted_at",
+  "decided_at",
+  "decided_by",
+  "reason",
 ];
 
 const EVENT_COLUMNS = [
@@ -97,6 +113,9 @@ export class PostgresSink implements PersistenceSink {
       }
       if (batch.transfers.length > 0) {
         await client.query(transferInsert(batch.transfers));
+      }
+      if (batch.listings.length > 0) {
+        await client.query(listingUpsert(batch.listings));
       }
 
       await client.query(
@@ -183,6 +202,34 @@ function orderUpsert(orders: Order[]) {
              status = EXCLUDED.status,
              sequence = EXCLUDED.sequence,
              updated_at = now()`,
+    values,
+  };
+}
+
+function listingUpsert(listings: Listing[]) {
+  const values = listings.flatMap((listing) => [
+    listing.id,
+    listing.sellerId,
+    listing.eventId,
+    listing.tierId,
+    listing.quantity,
+    listing.note,
+    listing.evidence,
+    listing.status,
+    new Date(listing.submittedAt),
+    listing.decidedAt === null ? null : new Date(listing.decidedAt),
+    listing.decidedBy,
+    listing.reason,
+  ]);
+
+  return {
+    text: `INSERT INTO listings (${LISTING_COLUMNS.join(", ")})
+           VALUES ${placeholders(listings.length, LISTING_COLUMNS.length)}
+           ON CONFLICT (id) DO UPDATE SET
+             status = EXCLUDED.status,
+             decided_at = EXCLUDED.decided_at,
+             decided_by = EXCLUDED.decided_by,
+             reason = EXCLUDED.reason`,
     values,
   };
 }

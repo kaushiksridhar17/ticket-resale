@@ -90,7 +90,7 @@ describe("WebSocket broadcasting", () => {
     if (existing) {
       return existing;
     }
-    const token = await signUp(app, `${userId}@example.com`, "customer");
+    const token = await signUp(app, `${userId}@example.com`);
     state.issueTickets(
       DEMO_EVENT_ID,
       DEMO_TIER_ID,

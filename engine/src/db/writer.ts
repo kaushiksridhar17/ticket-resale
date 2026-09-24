@@ -1,4 +1,5 @@
 import type { EventDefinition } from "../events/types.js";
+import type { Listing } from "../listings/types.js";
 import type { Ticket, TicketTransfer } from "../tickets/types.js";
 import type { Order, Trade } from "../types.js";
 
@@ -8,6 +9,7 @@ export interface PersistenceChanges {
   events?: EventDefinition[];
   tickets?: Ticket[];
   transfers?: TicketTransfer[];
+  listings?: Listing[];
 }
 
 export interface PersistenceBatch {
@@ -16,6 +18,7 @@ export interface PersistenceBatch {
   events: EventDefinition[];
   tickets: Ticket[];
   transfers: TicketTransfer[];
+  listings: Listing[];
   lastLogSeq: number;
 }
 
@@ -36,6 +39,7 @@ interface Group {
   events: EventDefinition[];
   tickets: Ticket[];
   transfers: TicketTransfer[];
+  listings: Listing[];
 }
 
 export class PersistenceWriter {
@@ -79,6 +83,7 @@ export class PersistenceWriter {
       events: (changes.events ?? []).map((event) => structuredClone(event)),
       tickets: (changes.tickets ?? []).map((ticket) => ({ ...ticket })),
       transfers: (changes.transfers ?? []).map((transfer) => ({ ...transfer })),
+      listings: (changes.listings ?? []).map((listing) => ({ ...listing })),
     };
 
     const size = groupSize(group);
@@ -157,7 +162,8 @@ export class PersistenceWriter {
         batch.orders.length +
         batch.events.length +
         batch.tickets.length +
-        batch.transfers.length;
+        batch.transfers.length +
+        batch.listings.length;
       return true;
     } catch (error) {
       this.failures += 1;
@@ -191,6 +197,7 @@ export class PersistenceWriter {
     const events = new Map<string, EventDefinition>();
     const tickets = new Map<string, Ticket>();
     const transfers = new Map<string, TicketTransfer>();
+    const listings = new Map<string, Listing>();
 
     for (const group of groups) {
       trades.push(...group.trades);
@@ -206,6 +213,9 @@ export class PersistenceWriter {
       for (const transfer of group.transfers) {
         transfers.set(`${transfer.ticketId}:${transfer.rotation}`, transfer);
       }
+      for (const listing of group.listings) {
+        listings.set(listing.id, listing);
+      }
     }
 
     return {
@@ -214,6 +224,7 @@ export class PersistenceWriter {
       events: [...events.values()],
       tickets: [...tickets.values()],
       transfers: [...transfers.values()],
+      listings: [...listings.values()],
       lastLogSeq: groups[groups.length - 1]?.logSeq ?? 0,
     };
   }
@@ -225,6 +236,7 @@ function groupSize(group: Group): number {
     group.orders.length +
     group.events.length +
     group.tickets.length +
-    group.transfers.length
+    group.transfers.length +
+    group.listings.length
   );
 }

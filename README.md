@@ -69,20 +69,61 @@ refused even inside its 30 seconds.
 
 ![Refused](docs/images/door-refused.png)
 
-## Roles
+## Accounts
 
-There are three, and an account is only ever one of them. Customers claim
-tickets. Sellers put up tickets they cannot use. The admin puts on the
-events, approves what sellers submit, and works the door.
+There is one admin, who puts on the events, approves what sellers submit
+and works the door. Everybody else is a member, and a member holds two
+switches: buying and selling. Most people want one of them, some want
+both, and nobody has to decide forever. Creating an account asks the
+question once, buying is on by default, and either switch can be flipped
+later without making a second account.
 
-Sign-in is by email and password, with a separate entrance for each role, so
-signing in at the wrong one is refused rather than quietly letting you
-through. Passwords are stored as scrypt hashes and never leave the server.
+Buying covers claiming a ticket and joining a queue. Selling covers
+putting up a ticket you got somewhere else, which is the thing an admin
+has to approve. Passing on a ticket you already hold is not gated by
+either, because that ticket is already in the system and already
+verified, and the whole point of the project is that a ticket you cannot
+use goes back to the queue.
 
-The admin account is not created through the site. It comes from
-`engine/admin.json`, or from `ADMIN_EMAIL` and `ADMIN_PASSWORD` under Docker,
-and it is only created the first time the engine starts with no admin
-already there.
+Everybody signs in at the same place with an email and a password. The
+account carries what it can do, so nobody is asked to declare anything,
+and the site sends you where you belong. Passwords are stored as scrypt
+hashes and never leave the server.
+
+Each account also carries its own settings, kept in Postgres rather than
+in the browser, so the theme you pick follows you to another machine. A
+small script applies the remembered theme before the first paint, so the
+page does not start light and turn dark once the account has loaded.
+
+The admin is not created through the site at all, which is why the site
+never offers it as a choice. It comes from `engine/admin.json`, or from
+`ADMIN_EMAIL` and `ADMIN_PASSWORD`, and it is only created the first time
+the engine starts with no admin already there. Out of the box that is
+`admin@example.com` with the password `admin-password`, which is fine for
+looking around and worth changing before the first run otherwise.
+
+## Putting up a ticket you cannot use
+
+A seller does not invent an event and does not name a price. They pick one
+out of the catalogue, say how many they have, and attach a photo of the
+ticket. It waits.
+
+The admin sees the queue, looks at the photo, and either approves it or
+turns it down with a reason the seller reads. Approving is what brings the
+tickets into existence: they are issued in the seller's name and go
+straight onto the book at the face value the admin set for that tier, in
+the same queue as the venue's own stock and behind anything already
+waiting. Turning it down creates nothing.
+
+That is the whole answer to a question this project cannot dodge. There is
+no way to check a ticket is real by machine, so a person looks, and the
+face value comes from the event rather than from whoever is selling.
+
+Photos are stored outside the log under names the server chooses, checked
+by their first bytes rather than by what the file claims to be, and handed
+out only to the seller who uploaded them and to the admin. Submissions and
+decisions go into the event log like everything else, so a restart still
+knows what is waiting and what was already decided.
 
 ## The catalogue
 
@@ -125,16 +166,17 @@ cd ticket-resale
 cp .env.example .env
 ```
 
-Put your own address and a password in `ADMIN_EMAIL` and `ADMIN_PASSWORD`,
-then:
+The copy comes with `admin@example.com` and `admin-password` already in it,
+so it runs as it is. Put your own address and password in `ADMIN_EMAIL` and
+`ADMIN_PASSWORD` if you would rather, then:
 
 ```bash
 docker compose up --build
 ```
 
-Open http://localhost:3000 and sign in at the admin entrance with what you
-just put in `.env`. Everyone else creates their own account. The catalogue
-is already there, with most of it on sale.
+Open http://localhost:3000 and sign in with those admin details. Everybody
+else creates their own account, as a customer or a seller. The catalogue is
+already there, with most of it on sale.
 
 To run the engine and the frontend yourself with only the database in
 Docker, uncomment `DATABASE_URL` in `.env` and start that one container:
@@ -196,7 +238,7 @@ cd engine && npm test
 
 ![Tests](docs/images/tests.png)
 
-312 of them, including property-based tests over thousands of randomised
+365 of them, including property-based tests over thousands of randomised
 order sequences: tickets are never duplicated or lost, every account's
 serial count matches its balance, total hand-overs equal total quantity
 traded, and the same sequence of orders always produces the same
@@ -219,8 +261,9 @@ engine/
     exchangeState.ts    rules, log, recovery
     events/             events, tiers, and the seeded catalogue
     tickets/            serials and chain of custody
+    listings/           seller submissions, photos, approvals
     door/               pass signing and scanning
-    auth/               passwords, sessions, roles
+    auth/               passwords, sessions, accounts, settings
     db/                 batched writer, migrations, Postgres schema
   bench/                engine throughput and the drop benchmark
 frontend/               Next.js, one page per thing you can do

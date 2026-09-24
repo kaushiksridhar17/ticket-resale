@@ -1,10 +1,13 @@
 import Fastify, { type FastifyError } from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
+import multipart from "@fastify/multipart";
 import { registerRoutes } from "./api/routes.js";
 import { registerHistoryRoutes } from "./api/history.js";
 import { registerEventRoutes } from "./api/events.js";
 import { registerDoorRoutes } from "./door/routes.js";
+import { registerListingRoutes } from "./listings/routes.js";
+import { EvidenceStore, MAX_BYTES } from "./listings/evidence.js";
 import { PassIssuer } from "./door/passes.js";
 import { registerWebSocket } from "./ws/routes.js";
 import { Broadcaster } from "./ws/broadcaster.js";
@@ -30,6 +33,7 @@ export interface ServerOptions {
   admin?: AdminDetails | null;
   seed?: SeedEvent[] | null;
   doorKey?: string;
+  evidencePath?: string;
 }
 
 function readConfiguredSeed(): SeedEvent[] | null {
@@ -97,6 +101,10 @@ export async function buildServer(options: ServerOptions = {}) {
     );
   }
 
+  const evidence = new EvidenceStore(
+    options.evidencePath ?? process.env.EVIDENCE_PATH ?? "data/evidence"
+  );
+
   const passes = new PassIssuer(
     options.doorKey ?? process.env.DOOR_KEY ?? "development-door-key"
   );
@@ -107,9 +115,12 @@ export async function buildServer(options: ServerOptions = {}) {
   await app.register(cors, {
     origin: true,
     credentials: true,
-    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   });
   await app.register(websocket);
+  await app.register(multipart, {
+    limits: { fileSize: MAX_BYTES, files: 1, fields: 8 },
+  });
   await registerAuthPlugin(app, auth);
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
@@ -133,6 +144,7 @@ export async function buildServer(options: ServerOptions = {}) {
   registerRoutes(app, { state, onOrderChange: onChange, onTrades });
   registerEventRoutes(app, { state });
   registerDoorRoutes(app, { state, passes });
+  registerListingRoutes(app, { state, evidence });
   registerHistoryRoutes(app, { state, database });
   registerWebSocket(app, broadcaster);
 

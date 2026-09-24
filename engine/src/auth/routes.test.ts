@@ -32,50 +32,71 @@ describe("auth routes", () => {
     });
   }
 
-  it("registers a customer and sets an httpOnly cookie", async () => {
+  it("registers a buyer and sets an httpOnly cookie", async () => {
     const response = await register({
       email: "kavya@example.com",
       password: TEST_PASSWORD,
-      role: "customer",
+      buys: true,
+      sells: false,
     });
 
     expect(response.statusCode).toBe(201);
     expect(response.json().user.email).toBe("kavya@example.com");
-    expect(response.json().user.role).toBe("customer");
+    expect(response.json().user.role).toBe("member");
+    expect(response.json().user.buys).toBe(true);
+    expect(response.json().user.sells).toBe(false);
 
     const cookie = response.cookies.find((entry) => entry.name === "session");
     expect(cookie?.httpOnly).toBe(true);
     expect(cookie?.sameSite?.toLowerCase()).toBe("lax");
   });
 
-  it("registers a seller under the seller role", async () => {
+  it("registers somebody who does both", async () => {
     const response = await register({
-      email: "seller@example.com",
+      email: "both@example.com",
       password: TEST_PASSWORD,
-      role: "seller",
+      buys: true,
+      sells: true,
       displayName: "Row J Tickets",
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.json().user.role).toBe("seller");
+    expect(response.json().user.buys).toBe(true);
+    expect(response.json().user.sells).toBe(true);
     expect(response.json().user.displayName).toBe("Row J Tickets");
   });
 
-  it("refuses to register anyone as an admin", async () => {
+  it("refuses a registration that does neither", async () => {
     const response = await register({
-      email: "sneaky@example.com",
+      email: "nobody@example.com",
       password: TEST_PASSWORD,
-      role: "admin",
+      buys: false,
+      sells: false,
     });
 
     expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe("nothing_chosen");
+  });
+
+  it("ignores a role sent by hand", async () => {
+    const response = await register({
+      email: "sneaky@example.com",
+      password: TEST_PASSWORD,
+      buys: true,
+      sells: false,
+      role: "admin",
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().user.role).toBe("member");
   });
 
   it("rejects a malformed email", async () => {
     const response = await register({
       email: "nope",
       password: TEST_PASSWORD,
-      role: "customer",
+      buys: true,
+      sells: false,
     });
 
     expect(response.statusCode).toBe(400);
@@ -86,7 +107,8 @@ describe("auth routes", () => {
     const response = await register({
       email: "kavya@example.com",
       password: "short",
-      role: "customer",
+      buys: true,
+      sells: false,
     });
 
     expect(response.statusCode).toBe(400);
@@ -103,13 +125,15 @@ describe("auth routes", () => {
     await register({
       email: "kavya@example.com",
       password: TEST_PASSWORD,
-      role: "customer",
+      buys: true,
+      sells: false,
     });
 
     const response = await register({
       email: "kavya@example.com",
       password: TEST_PASSWORD,
-      role: "seller",
+      buys: false,
+      sells: true,
     });
 
     expect(response.statusCode).toBe(409);
@@ -117,7 +141,7 @@ describe("auth routes", () => {
   });
 
   it("signs in with the right password", async () => {
-    await signUp(app, "kavya@example.com", "customer");
+    await signUp(app, "kavya@example.com");
 
     const response = await app.inject({
       method: "POST",
@@ -131,7 +155,7 @@ describe("auth routes", () => {
   });
 
   it("returns 401 for a wrong password", async () => {
-    await signUp(app, "kavya@example.com", "customer");
+    await signUp(app, "kavya@example.com");
 
     const response = await app.inject({
       method: "POST",
@@ -154,31 +178,25 @@ describe("auth routes", () => {
     expect(response.json().code).toBe("wrong_credentials");
   });
 
-  it("turns a customer away from the seller entrance", async () => {
-    await signUp(app, "kavya@example.com", "customer");
+  it("reports back what the account does rather than being told it", async () => {
+    await signUp(app, "seller@example.com", { buys: false, sells: true });
 
     const response = await app.inject({
       method: "POST",
       url: "/auth/login",
-      payload: {
-        email: "kavya@example.com",
-        password: TEST_PASSWORD,
-        role: "seller",
-      },
+      payload: { email: "seller@example.com", password: TEST_PASSWORD },
     });
 
-    expect(response.statusCode).toBe(401);
+    expect(response.statusCode).toBe(200);
+    expect(response.json().user.buys).toBe(false);
+    expect(response.json().user.sells).toBe(true);
   });
 
-  it("lets the admin from the admin file sign in", async () => {
+  it("lets the admin from the admin file in through the same door", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/auth/login",
-      payload: {
-        email: "admin@example.com",
-        password: "admin-password",
-        role: "admin",
-      },
+      payload: { email: "admin@example.com", password: "admin-password" },
     });
 
     expect(response.statusCode).toBe(200);
@@ -192,7 +210,7 @@ describe("auth routes", () => {
   });
 
   it("returns the signed in user from /me", async () => {
-    const session = await signUp(app, "kavya@example.com", "customer");
+    const session = await signUp(app, "kavya@example.com");
 
     const response = await app.inject({
       method: "GET",
@@ -216,7 +234,7 @@ describe("auth routes", () => {
   });
 
   it("stops accepting the session after logout", async () => {
-    const session = await signUp(app, "kavya@example.com", "customer");
+    const session = await signUp(app, "kavya@example.com");
 
     const loggedOut = await app.inject({
       method: "POST",
@@ -234,8 +252,8 @@ describe("auth routes", () => {
   });
 
   it("gives two people separate sessions", async () => {
-    const first = await signUp(app, "kavya@example.com", "customer");
-    const second = await signUp(app, "diya@example.com", "customer");
+    const first = await signUp(app, "kavya@example.com");
+    const second = await signUp(app, "diya@example.com");
 
     expect(first).not.toBe(second);
 
@@ -248,7 +266,7 @@ describe("auth routes", () => {
   });
 
   it("gives the same person a fresh session each time they sign in", async () => {
-    const first = await signUp(app, "kavya@example.com", "customer");
+    const first = await signUp(app, "kavya@example.com");
     const second = await signIn(app, "kavya@example.com");
 
     expect(first).not.toBe(second);
@@ -261,5 +279,134 @@ describe("auth routes", () => {
       });
       expect(me.statusCode).toBe(200);
     }
+  });
+});
+
+describe("settings routes", () => {
+  let app: FastifyInstance;
+  let session: string;
+
+  beforeEach(async () => {
+    const built = await buildServer({
+      logPath: null,
+      authPepper: "test-pepper",
+      admin: null,
+    });
+    app = built.app;
+    await app.ready();
+    session = await signUp(app, "kavya@example.com");
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function settings(payload: Record<string, unknown>, cookie = session) {
+    return app.inject({
+      method: "PATCH",
+      url: "/me/settings",
+      cookies: { session: cookie },
+      payload,
+    });
+  }
+
+  it("turns selling on and hands the account straight back", async () => {
+    const response = await settings({ sells: true });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().user.sells).toBe(true);
+    expect(response.json().user.buys).toBe(true);
+  });
+
+  it("keeps the change for next time", async () => {
+    await settings({ theme: "dark", sells: true });
+
+    const me = await app.inject({
+      method: "GET",
+      url: "/me",
+      cookies: { session },
+    });
+    expect(me.json().user.theme).toBe("dark");
+    expect(me.json().user.sells).toBe(true);
+  });
+
+  it("refuses to leave an account doing neither", async () => {
+    const response = await settings({ buys: false, sells: false });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe("nothing_chosen");
+  });
+
+  it("refuses a theme it does not have", async () => {
+    expect((await settings({ theme: "neon" })).statusCode).toBe(400);
+  });
+
+  it("refuses an empty change", async () => {
+    expect((await settings({})).statusCode).toBe(400);
+  });
+
+  it("refuses to change settings without a session", async () => {
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/me/settings",
+      payload: { theme: "dark" },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("changes the password and keeps this browser signed in", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/me/password",
+      cookies: { session },
+      payload: {
+        currentPassword: TEST_PASSWORD,
+        newPassword: "a-brand-new-password",
+      },
+    });
+
+    expect(response.statusCode).toBe(204);
+
+    const fresh = response.cookies.find((entry) => entry.name === "session")!;
+    const me = await app.inject({
+      method: "GET",
+      url: "/me",
+      cookies: { session: fresh.value },
+    });
+    expect(me.statusCode).toBe(200);
+
+    const old = await app.inject({
+      method: "GET",
+      url: "/me",
+      cookies: { session },
+    });
+    expect(old.statusCode).toBe(401);
+  });
+
+  it("refuses to change the password without the old one", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/me/password",
+      cookies: { session },
+      payload: {
+        currentPassword: "not-the-password",
+        newPassword: "a-brand-new-password",
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("refuses to change the password to a weak one", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/me/password",
+      cookies: { session },
+      payload: { currentPassword: TEST_PASSWORD, newPassword: "short" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe("weak_password");
   });
 });

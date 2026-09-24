@@ -136,9 +136,8 @@ export default function DoorPage() {
     return (
       <div className="max-w-lg">
         <h1 className="font-display text-4xl leading-tight">The door</h1>
-        <p className="mt-4 text-sm leading-relaxed text-muted">
-          Scanning people in is the admin account's job. Sign in as the admin
-          to work the door.
+        <p className="mt-4 text-sm text-muted">
+          You do not have access to this page.
         </p>
       </div>
     );
@@ -243,10 +242,10 @@ Type it instead
         </>
       )}
 
-      <p className="mt-10 text-xs leading-relaxed text-muted">
-        Codes last half a minute and die when a ticket changes hands.{" "}
+      <p className="mt-10 text-xs text-muted">
+        Passes last thirty seconds.{" "}
         <Link href="/organize" className="underline underline-offset-4">
-          The admin pages
+          Admin
         </Link>{" "}
         show who holds what.
       </p>

@@ -41,7 +41,7 @@ export default function PassPage() {
           if (!cancelled) {
             setError(
               caught instanceof ApiError && caught.status === 409
-                ? "This event has been called off."
+                ? caught.message
                 : "That ticket isn\u2019t yours."
             );
           }
@@ -140,9 +140,8 @@ export default function PassPage() {
             </div>
           )}
 
-          <p className="mt-8 text-xs leading-relaxed text-muted">
-            New code every half minute. Passing the ticket on kills the old
-            one, so a screenshot is no use to anyone.
+          <p className="mt-8 text-xs text-muted">
+            A new pass every thirty seconds.
           </p>
         </>
       )}

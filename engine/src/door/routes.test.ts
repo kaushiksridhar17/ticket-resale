@@ -26,8 +26,8 @@ describe("the door", () => {
     await app.ready();
 
     admin = await signIn(app, "admin@example.com", "admin-password");
-    rosie = await signUp(app, "rosie@example.com", "customer");
-    sam = await signUp(app, "sam@example.com", "customer");
+    rosie = await signUp(app, "rosie@example.com");
+    sam = await signUp(app, "sam@example.com");
 
     const closesAt = Date.now() + 24 * HOUR;
     const created = await app.inject({
@@ -277,6 +277,62 @@ describe("the door", () => {
 
     expect(response.statusCode).toBe(409);
     expect(response.json().cancelled).toBe(true);
+  });
+
+  it("refuses a pass for a ticket that is waiting to be passed on", async () => {
+    const [ticket] = await ticketsOf(rosie);
+
+    await order(rosie, "sell", 1);
+
+    const response = await passFor(rosie, ticket!.id);
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().reserved).toBe(true);
+  });
+
+  it("gives the pass back once the seller withdraws", async () => {
+    const [ticket] = await ticketsOf(rosie);
+
+    const placed = await order(rosie, "sell", 1);
+    const orderId = placed.json().order.id;
+    expect((await passFor(rosie, ticket!.id)).statusCode).toBe(409);
+
+    await app.inject({
+      method: "DELETE",
+      url: `/orders/${orderId}`,
+      cookies: { session: rosie },
+    });
+
+    expect((await passFor(rosie, ticket!.id)).statusCode).toBe(200);
+  });
+
+  it("only reserves as many tickets as are actually listed", async () => {
+    const tickets = await ticketsOf(rosie);
+    expect(tickets.length).toBe(2);
+
+    await order(rosie, "sell", 1);
+
+    const listed = await app.inject({
+      method: "GET",
+      url: "/tickets",
+      cookies: { session: rosie },
+    });
+    const flags = listed.json().tickets.map((t: { reserved: boolean }) => t.reserved);
+    expect(flags.filter(Boolean)).toHaveLength(1);
+
+    expect((await passFor(rosie, tickets[1]!.id)).statusCode).toBe(200);
+  });
+
+  it("stops the door letting in a ticket somebody has already sold", async () => {
+    const [ticket] = await ticketsOf(rosie);
+    const { token } = (await passFor(rosie, ticket!.id)).json();
+
+    await order(rosie, "sell", 1);
+    await order(sam, "buy", 1);
+
+    const response = await scan(admin, token);
+
+    expect(response.json().admitted).toBe(false);
   });
 
   it("remembers who came in once the pass is used", async () => {

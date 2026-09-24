@@ -35,7 +35,7 @@ export default function NewEventPage() {
   if (!user || user.role !== "admin") {
     return (
       <p className="text-sm text-muted">
-        Only the admin can put on an event.{" "}
+        You do not have access to this page.{" "}
         <Link
           href="/organize"
           className="text-ink underline decoration-accent underline-offset-4"
@@ -140,10 +140,6 @@ export default function NewEventPage() {
       <h1 className="mt-6 font-display text-4xl leading-tight">
         Put on an event
       </h1>
-      <p className="mt-3 text-sm leading-relaxed text-muted">
-        Whatever you set as face value is the ceiling, permanently. Nobody can
-        go above it, including you.
-      </p>
 
       <form onSubmit={submit} className="mt-10 space-y-10">
         <section className="space-y-5">
@@ -265,9 +261,8 @@ export default function NewEventPage() {
             </button>
           )}
 
-          <p className="mt-4 text-xs leading-relaxed text-muted">
-            Leave the price empty if it&apos;s free. The limit counts tickets
-            somebody holds plus anything they&apos;re queuing for.
+          <p className="mt-4 text-xs text-muted">
+            Leave the price empty for free entry.
           </p>
         </section>
 

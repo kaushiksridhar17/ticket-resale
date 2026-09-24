@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { OrderRejected } from "../exchange.js";
 import { placeOrderSchema, type PlaceOrderBody } from "./schemas.js";
-import { requireUser } from "../auth/plugin.js";
+import { requireBuyer, requireUser } from "../auth/plugin.js";
 import type { ExchangeState } from "../exchangeState.js";
 import type { Order, Trade } from "../types.js";
 
@@ -53,8 +53,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   });
 
   app.post("/orders", { schema: placeOrderSchema }, async (request, reply) => {
-    const user = requireUser(request);
     const body = request.body as PlaceOrderBody;
+    const user =
+      body.side === "buy" ? requireBuyer(request) : requireUser(request);
 
     if (!state.isValidSymbol(body.symbol)) {
       return reply.code(400).send({ error: `Unknown symbol ${body.symbol}` });

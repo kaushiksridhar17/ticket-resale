@@ -10,22 +10,33 @@ interface Props {
   onSignOut: () => void;
 }
 
-const LINKS = [
-  { href: "/", label: "Events" },
-  { href: "/tickets", label: "My tickets" },
-];
-
-const ADMIN_LINKS = [
-  { href: "/", label: "Events" },
-  { href: "/organize", label: "Admin" },
-  { href: "/door", label: "The door" },
-];
-
-function linksFor(role: User["role"] | null) {
-  if (role === "admin") {
-    return ADMIN_LINKS;
+function linksFor(user: User | null) {
+  if (user?.role === "admin") {
+    return [
+      { href: "/", label: "Events" },
+      { href: "/organize", label: "Admin" },
+      { href: "/organize/listings", label: "Submitted" },
+      { href: "/door", label: "The door" },
+    ];
   }
-  return LINKS;
+
+  const links = [{ href: "/", label: "Events" }];
+  if (user) {
+    links.push({ href: "/tickets", label: "My tickets" });
+  }
+  if (user?.sells) {
+    links.push({ href: "/sell", label: "Sell" });
+  }
+  return links;
+}
+
+function PersonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden>
+      <circle cx="12" cy="7.5" r="4.25" />
+      <path d="M12 13.25c-4.28 0-7.75 2.9-7.75 6.48 0 .15.12.27.27.27h14.96c.15 0 .27-.12.27-.27 0-3.58-3.47-6.48-7.75-6.48Z" />
+    </svg>
+  );
 }
 
 export function SiteHeader({ user, loading, onSignOut }: Props) {
@@ -39,7 +50,7 @@ export function SiteHeader({ user, loading, onSignOut }: Props) {
             Face <span className="italic text-accent">Value</span>
           </Link>
           <nav className="flex gap-6">
-            {linksFor(user?.role ?? null).map((link) => (
+            {linksFor(user).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -56,10 +67,19 @@ export function SiteHeader({ user, loading, onSignOut }: Props) {
         </div>
 
         {loading ? null : user ? (
-          <div className="flex items-baseline gap-4">
-            <span className="hidden text-xs text-muted sm:inline">
-              {user.email}
-            </span>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/settings"
+              aria-label="Settings"
+              className={`flex items-center gap-2 transition ${
+                pathname === "/settings"
+                  ? "text-ink"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              <PersonIcon />
+              <span className="hidden text-xs sm:inline">{user.email}</span>
+            </Link>
             <button onClick={onSignOut} className="eyebrow text-muted hover:text-ink">
               Sign out
             </button>

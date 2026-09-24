@@ -3,6 +3,8 @@ import { FileEventLog, type LogEntry } from "./eventLog.js";
 import { EventRegistry } from "./events/registry.js";
 import { symbolFor, type EventDefinition } from "./events/types.js";
 import { TicketRegistry } from "./tickets/registry.js";
+import { ListingRegistry } from "./listings/registry.js";
+import { ListingError, type Listing } from "./listings/types.js";
 import type { Ticket, TicketTransfer } from "./tickets/types.js";
 import type { PersistenceChanges } from "./db/writer.js";
 import type { Command } from "./commands.js";
@@ -28,6 +30,7 @@ export class ExchangeState {
   readonly exchange: Exchange;
   readonly events = new EventRegistry();
   readonly tickets = new TicketRegistry();
+  readonly listings = new ListingRegistry();
   private readonly log: FileEventLog | null;
   private readonly persistence: PersistenceTarget | null;
   private readonly lastPersistedLogSeq: number;
@@ -36,6 +39,7 @@ export class ExchangeState {
   private trades: Trade[] = [];
   private orderCounter = 0;
   private eventCounter = 0;
+  private listingCounter = 0;
   private recoveredCount = 0;
   private requeuedCount = 0;
 
@@ -87,6 +91,75 @@ export class ExchangeState {
   nextEventId(): string {
     this.eventCounter += 1;
     return `evt_${this.eventCounter}`;
+  }
+
+  nextListingId(): string {
+    this.listingCounter += 1;
+    return `lst_${this.listingCounter}`;
+  }
+
+  submitListing(listing: Listing): Listing {
+    this.listings.add(listing);
+    this.log?.append({ kind: "submitListing", listing: structuredClone(listing) });
+    this.persistence?.enqueue(this.logPosition(), { listings: [listing] });
+    return listing;
+  }
+
+  // Approving is three things happening together: the listing is marked,
+  // the tickets come into being in the seller's name, and they go on sale
+  // at the face value the admin set. The last two write their own log
+  // entries, so a replay does not do them twice.
+  decideListing(
+    listingId: string,
+    status: "approved" | "rejected",
+    decidedBy: string,
+    reason: string | null,
+    now = Date.now()
+  ): Listing {
+    const before = this.listings.get(listingId);
+    if (!before) {
+      throw new ListingError(`Unknown listing ${listingId}`);
+    }
+
+    const ref = this.events.resolve(symbolFor(before.eventId, before.tierId));
+    if (status === "approved" && !ref) {
+      throw new ListingError(`Listing ${listingId} is for an event that is gone`);
+    }
+
+    const listing = this.listings.decide(listingId, status, decidedBy, now, reason);
+    this.log?.append({
+      kind: "decideListing",
+      listingId,
+      status,
+      decidedBy,
+      decidedAt: now,
+      reason,
+    });
+    this.persistence?.enqueue(this.logPosition(), { listings: [listing] });
+
+    if (status === "approved" && ref) {
+      this.issueTickets(
+        listing.eventId,
+        listing.tierId,
+        listing.quantity,
+        listing.sellerId
+      );
+      this.submitOrder({
+        id: this.nextOrderId(),
+        userId: listing.sellerId,
+        symbol: symbolFor(listing.eventId, listing.tierId),
+        side: "sell",
+        type: "limit",
+        priceInCents: ref.tier.faceValueInCents,
+        quantity: listing.quantity,
+        remainingQuantity: listing.quantity,
+        status: "open",
+        sequence: 0,
+        createdAt: now,
+      });
+    }
+
+    return listing;
   }
 
   createEvent(event: EventDefinition): EventDefinition {
@@ -171,6 +244,33 @@ export class ExchangeState {
       return 0;
     }
     return this.exchange.accounts.get(userId).positions.get(symbol)?.total ?? 0;
+  }
+
+  lockedTickets(userId: string, symbol: string): number {
+    if (!this.exchange.accounts.has(userId)) {
+      return 0;
+    }
+    return this.exchange.accounts.get(userId).positions.get(symbol)?.locked ?? 0;
+  }
+
+  // The tickets a sell order will hand over when it fills, which are the
+  // ones at the front of the holder's list. They are spoken for, so they
+  // must not also open a door.
+  reservedTicketIds(userId: string): Set<string> {
+    const reserved = new Set<string>();
+    const bySymbol = new Map<string, number>();
+
+    for (const ticket of this.tickets.heldBy(userId)) {
+      bySymbol.set(ticket.symbol, 0);
+    }
+    for (const symbol of bySymbol.keys()) {
+      const locked = this.lockedTickets(userId, symbol);
+      for (const ticket of this.tickets.heldBy(userId, symbol).slice(0, locked)) {
+        reserved.add(ticket.id);
+      }
+    }
+
+    return reserved;
   }
 
   openBuyQuantity(userId: string, symbol: string): number {
@@ -402,6 +502,7 @@ export class ExchangeState {
   private recover(entries: LogEntry[]): void {
     let highestCounter = 0;
     let highestEvent = 0;
+    let highestListing = 0;
 
     for (const entry of entries) {
       const command: Command = entry.command;
@@ -429,6 +530,34 @@ export class ExchangeState {
         this.events.recordIssued(symbol, command.count);
         if (shouldPersist && this.persistence) {
           this.persistIssued(entry.seq, issued);
+          this.requeuedCount += 1;
+        }
+        continue;
+      }
+
+      if (command.kind === "submitListing") {
+        this.listings.add(command.listing);
+        const listingMatch = /^lst_(\d+)$/.exec(command.listing.id);
+        if (listingMatch) {
+          highestListing = Math.max(highestListing, Number(listingMatch[1]));
+        }
+        if (shouldPersist && this.persistence) {
+          this.persistence.enqueue(entry.seq, { listings: [command.listing] });
+          this.requeuedCount += 1;
+        }
+        continue;
+      }
+
+      if (command.kind === "decideListing") {
+        const listing = this.listings.decide(
+          command.listingId,
+          command.status,
+          command.decidedBy,
+          command.decidedAt,
+          command.reason
+        );
+        if (shouldPersist && this.persistence) {
+          this.persistence.enqueue(entry.seq, { listings: [listing] });
           this.requeuedCount += 1;
         }
         continue;
@@ -483,6 +612,7 @@ export class ExchangeState {
 
     this.orderCounter = highestCounter;
     this.eventCounter = highestEvent;
+    this.listingCounter = highestListing;
     this.recoveredCount = entries.length;
   }
 }

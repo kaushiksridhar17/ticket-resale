@@ -3,6 +3,7 @@ import type {
   NewUser,
   Role,
   SessionRecord,
+  Settings,
   User,
   UserStatus,
 } from "./types.js";
@@ -44,6 +45,15 @@ export class MemoryAuthStore implements AuthStore {
     const user = this.users.get(userId);
     if (user) {
       user.status = status;
+    }
+  }
+
+  async setSettings(userId: string, settings: Settings): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      user.buys = settings.buys;
+      user.sells = settings.sells;
+      user.theme = settings.theme;
     }
   }
 

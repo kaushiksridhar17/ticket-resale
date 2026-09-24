@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ApiError, cancelOrder, placeOrder } from "@/lib/api";
+import { ApiError, placeOrder } from "@/lib/api";
 import { centsToDollars, formatPrice } from "@/lib/format";
 import { useExchangeSocket } from "@/lib/useExchangeSocket";
+import { PassOnPanel, Quantity, RestingOrders, restingFor } from "./PassOn";
 import type { AccountSummary, EventSummary, Tier, User } from "@/lib/types";
 
 interface Props {
@@ -32,11 +33,7 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
   const held = position?.total ?? 0;
   const sellable = (position?.total ?? 0) - (position?.locked ?? 0);
 
-  const resting = (account?.orders ?? []).filter(
-    (order) =>
-      order.symbol === tier.symbol &&
-      (order.status === "open" || order.status === "partially_filled")
-  );
+  const resting = restingFor(account?.orders ?? [], tier.symbol);
   const queued = resting
     .filter((order) => order.side === "buy")
     .reduce((sum, order) => sum + order.remainingQuantity, 0);
@@ -68,8 +65,8 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
             : available > 0
               ? `${available} spare, from ${formatPrice(cheapest ?? 0)}.`
               : waiting > 0
-                ? `None spare. ${waiting} already waiting.`
-                : "None spare just now."}
+                ? `None spare. ${waiting} in the queue.`
+                : "None spare."}
         </p>
         <p className="eyebrow mt-3 text-muted">
           Max {tier.perPersonLimit} each
@@ -82,77 +79,42 @@ export function TierPanel({ event, tier, user, account, onChanged }: Props) {
           <Link href="/signin" className="text-ink underline decoration-accent underline-offset-4">
             Sign in
           </Link>{" "}
-          to claim one or join the queue.
+to claim one or join the queue.
         </p>
       ) : !open ? null : (
         <>
-          <BuyPanel
-            tier={tier}
-            available={available}
-            allowance={allowance}
-            onChanged={onChanged}
-          />
+          {user.buys || user.role === "admin" ? (
+            <BuyPanel
+              tier={tier}
+              available={available}
+              allowance={allowance}
+              onChanged={onChanged}
+            />
+          ) : (
+            <p className="text-sm text-muted">
+              Buying is off for this account.{" "}
+              <Link
+                href="/settings"
+                className="text-ink underline decoration-accent underline-offset-4"
+              >
+                Turn it on
+              </Link>
+              .
+            </p>
+          )}
           {sellable > 0 && (
-            <PassOnPanel tier={tier} sellable={sellable} onChanged={onChanged} />
+            <PassOnPanel
+              symbol={tier.symbol}
+              faceValueInCents={tier.faceValueInCents}
+              sellable={sellable}
+              onChanged={onChanged}
+            />
           )}
         </>
       )}
 
-      {resting.length > 0 && (
-        <section>
-          <h3 className="eyebrow text-muted">Pending</h3>
-          <ul className="mt-3 border-t border-rule">
-            {resting.map((order) => (
-              <li
-                key={order.id}
-                className="flex items-baseline justify-between gap-4 border-b border-rule py-3 text-sm"
-              >
-                <span>
-                  {order.side === "buy" ? "Waiting for" : "Passing on"}{" "}
-                  {order.remainingQuantity}
-                </span>
-                <button
-                  onClick={async () => {
-                    await cancelOrder(order.id).catch(() => undefined);
-                    onChanged();
-                  }}
-                  className="eyebrow text-muted hover:text-accent"
-                >
-                  {order.side === "buy" ? "Leave queue" : "Withdraw"}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <RestingOrders orders={resting} onChanged={onChanged} />
     </div>
-  );
-}
-
-function Quantity({
-  value,
-  max,
-  onChange,
-}: {
-  value: number;
-  max: number;
-  onChange: (next: number) => void;
-}) {
-  return (
-    <label className="eyebrow text-muted">
-      How many
-      <select
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-1.5 block w-16 border border-rule bg-card px-2 py-2.5 font-sans text-sm text-ink outline-none focus:border-ink"
-      >
-        {Array.from({ length: max }, (_, index) => index + 1).map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -175,7 +137,7 @@ function BuyPanel({
   if (allowance <= 0) {
     return (
       <p className="border-l-2 border-accent pl-4 text-sm text-muted">
-        You&apos;ve got {tier.perPersonLimit}, which is the limit here.
+        You have {tier.perPersonLimit}, the limit for this event.
       </p>
     );
   }
@@ -201,14 +163,14 @@ function BuyPanel({
       );
 
       const owed =
-        spent === 0 ? "Nothing to pay." : `$${centsToDollars(spent)} on the night.`;
+        spent === 0 ? "Nothing to pay." : `$${centsToDollars(spent)} at the door.`;
 
       if (got === 0) {
-        setMessage("You're in the queue.");
+        setMessage("In the queue.");
       } else if (got < quantity) {
-        setMessage(`${got} yours. ${owed} The rest are queued.`);
+        setMessage(`${got} claimed, ${quantity - got} queued. ${owed}`);
       } else {
-        setMessage(`${got === 1 ? "It's" : "They're"} yours. ${owed}`);
+        setMessage(`Claimed. ${owed}`);
       }
 
       onChanged();
@@ -240,80 +202,10 @@ function BuyPanel({
         </button>
       </div>
 
-      <p className="mt-3 text-xs leading-relaxed text-muted">
+      <p className="mt-3 text-xs text-muted">
         {tier.faceValueInCents === 0
-          ? "Free entry. Nothing to pay, here or at the door."
-          : `You'll pay the venue ${formatPrice(tier.faceValueInCents)} on the night, never more.`}
-      </p>
-
-      {message && <p className="mt-3 text-sm">{message}</p>}
-      {error && <p className="mt-3 text-sm text-accent">{error}</p>}
-    </section>
-  );
-}
-
-function PassOnPanel({
-  tier,
-  sellable,
-  onChanged,
-}: {
-  tier: Tier;
-  sellable: number;
-  onChanged: () => void;
-}) {
-  const [quantity, setQuantity] = useState(1);
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function passOn() {
-    setPending(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      const result = await placeOrder({
-        symbol: tier.symbol,
-        side: "sell",
-        type: "limit",
-        priceInCents: tier.faceValueInCents,
-        quantity,
-      });
-
-      const gone = result.trades.reduce((sum, trade) => sum + trade.quantity, 0);
-      setMessage(
-        gone === quantity
-          ? "Gone, to whoever was first in line."
-          : gone > 0
-            ? `${gone} gone, ${quantity - gone} waiting for someone.`
-            : "Back in the queue."
-      );
-
-      onChanged();
-    } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Something went wrong");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <section>
-      <h3 className="eyebrow text-muted">Can&apos;t go?</h3>
-
-      <div className="mt-3 flex items-end gap-4">
-        <Quantity value={quantity} max={sellable} onChange={setQuantity} />
-        <button
-          onClick={() => void passOn()}
-          disabled={pending}
-          className="eyebrow flex-1 border border-ink py-3.5 text-ink transition hover:bg-ink hover:text-paper disabled:opacity-40"
-        >
-          {pending ? "Working" : "Pass it on"}
-        </button>
-      </div>
-
-      <p className="mt-3 text-xs leading-relaxed text-muted">
-        Straight back in the queue, to whoever&apos;s been waiting longest.
+          ? "Free entry."
+          : `${formatPrice(tier.faceValueInCents)}, paid at the door.`}
       </p>
 
       {message && <p className="mt-3 text-sm">{message}</p>}

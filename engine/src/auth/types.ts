@@ -1,10 +1,20 @@
-export type Role = "admin" | "seller" | "customer";
+export type Role = "admin" | "member";
 
-export const ROLES: Role[] = ["admin", "seller", "customer"];
+export const ROLES: Role[] = ["admin", "member"];
 
 export type UserStatus = "active" | "suspended";
 
-export interface User {
+export type Theme = "light" | "dark" | "system";
+
+export const THEMES: Theme[] = ["light", "dark", "system"];
+
+export interface Settings {
+  buys: boolean;
+  sells: boolean;
+  theme: Theme;
+}
+
+export interface User extends Settings {
   id: string;
   email: string;
   displayName: string | null;
@@ -30,6 +40,7 @@ export interface AuthStore {
   createUser(user: NewUser): Promise<void>;
   setPassword(userId: string, passwordHash: string): Promise<void>;
   setStatus(userId: string, status: UserStatus): Promise<void>;
+  setSettings(userId: string, settings: Settings): Promise<void>;
   countByRole(role: Role): Promise<number>;
   createSession(session: SessionRecord): Promise<void>;
   getSession(tokenHash: string): Promise<SessionRecord | null>;

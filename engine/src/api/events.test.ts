@@ -25,8 +25,8 @@ describe("event and ticket routes", () => {
     await app.ready();
 
     admin = await signIn(app, "admin@example.com", "admin-password");
-    seller = await signUp(app, "seller@example.com", "seller");
-    customer = await signUp(app, "customer@example.com", "customer");
+    seller = await signUp(app, "seller@example.com", { buys: false, sells: true });
+    customer = await signUp(app, "customer@example.com");
   });
 
   afterEach(async () => {
@@ -417,7 +417,7 @@ describe("event and ticket routes", () => {
     await issue(event.id, 4);
     const symbol = `${event.id}:GA`;
 
-    const other = await signUp(app, "other@example.com", "customer");
+    const other = await signUp(app, "other@example.com");
 
     const sell = (session: string, price: number, quantity: number) =>
       app.inject({
@@ -468,6 +468,92 @@ describe("event and ticket routes", () => {
 
     expect(sellerView.statusCode).toBe(403);
     expect(customerView.statusCode).toBe(403);
+  });
+
+  it("refuses a buy from an account that does not buy", async () => {
+    const { event } = (await createEvent()).json();
+    await issue(event.id, 5);
+    const symbol = `${event.id}:GA`;
+
+    await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 2 },
+      cookies: { session: admin },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "buy", type: "limit", priceInCents: 1500, quantity: 1 },
+      cookies: { session: seller },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("lets a buy through once buying is turned on", async () => {
+    const { event } = (await createEvent()).json();
+    await issue(event.id, 5);
+    const symbol = `${event.id}:GA`;
+
+    await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 2 },
+      cookies: { session: admin },
+    });
+    await app.inject({
+      method: "PATCH",
+      url: "/me/settings",
+      cookies: { session: seller },
+      payload: { buys: true },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "buy", type: "limit", priceInCents: 1500, quantity: 1 },
+      cookies: { session: seller },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().trades).toHaveLength(1);
+  });
+
+  it("lets anybody pass on a ticket they already hold", async () => {
+    const { event } = (await createEvent()).json();
+    await issue(event.id, 5);
+    const symbol = `${event.id}:GA`;
+
+    await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 2 },
+      cookies: { session: admin },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "buy", type: "limit", priceInCents: 1500, quantity: 1 },
+      cookies: { session: customer },
+    });
+
+    await app.inject({
+      method: "PATCH",
+      url: "/me/settings",
+      cookies: { session: customer },
+      payload: { buys: false, sells: true },
+    });
+
+    const passedOn = await app.inject({
+      method: "POST",
+      url: "/orders",
+      payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 1 },
+      cookies: { session: customer },
+    });
+
+    expect(passedOn.statusCode).toBe(201);
   });
 
   it("gives each new event its own id", async () => {

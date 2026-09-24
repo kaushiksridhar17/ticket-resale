@@ -63,6 +63,13 @@ export function registerDoorRoutes(app: FastifyInstance, deps: DoorDeps): void {
       });
     }
 
+    if (state.reservedTicketIds(user.id).has(ticket.id)) {
+      return reply.code(409).send({
+        error: "This ticket is waiting to be passed on",
+        reserved: true,
+      });
+    }
+
     const issued = passes.issue(ticket.id, ticket.rotation);
 
     return {

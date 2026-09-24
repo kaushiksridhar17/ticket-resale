@@ -25,8 +25,8 @@ describe("HTTP API", () => {
     state = built.state;
     await app.ready();
 
-    alice = await signUp(app, "alice@example.com", "customer");
-    bob = await signUp(app, "bob@example.com", "customer");
+    alice = await signUp(app, "alice@example.com");
+    bob = await signUp(app, "bob@example.com");
     aliceId = await userIdFor(app, alice);
     bobId = await userIdFor(app, bob);
 

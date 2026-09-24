@@ -78,5 +78,16 @@ export function publicUser(user: User) {
     displayName: user.displayName,
     role: user.role,
     status: user.status,
+    buys: user.buys,
+    sells: user.sells,
+    theme: user.theme,
   };
+}
+
+export function requireBuyer(request: FastifyRequest): User {
+  const user = requireUser(request);
+  if (user.role !== "admin" && !user.buys) {
+    throw new NotAllowed("Turn on buying in your settings first");
+  }
+  return user;
 }

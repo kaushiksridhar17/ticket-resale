@@ -1,5 +1,5 @@
 {
-  "email": "you@example.com",
-  "password": "change-this-before-you-show-anyone",
-  "name": "Your name"
+  "email": "admin@example.com",
+  "password": "admin-password",
+  "name": "Site admin"
 }

@@ -1,4 +1,6 @@
-export type Role = "admin" | "seller" | "customer";
+export type Role = "admin" | "member";
+
+export type Theme = "light" | "dark" | "system";
 
 export interface User {
   id: string;
@@ -6,6 +8,9 @@ export interface User {
   displayName: string | null;
   role: Role;
   status: "active" | "suspended";
+  buys: boolean;
+  sells: boolean;
+  theme: Theme;
 }
 
 export type Side = "buy" | "sell";
@@ -155,6 +160,7 @@ export interface TicketSummary {
   symbol: string;
   serial: number;
   rotation: number;
+  reserved: boolean;
   eventId: string | null;
   eventName: string | null;
   eventStatus: EventStatus | null;
@@ -163,4 +169,24 @@ export interface TicketSummary {
   tierId: string | null;
   tierName: string | null;
   faceValueInCents: number | null;
+}
+
+export type ListingStatus = "pending" | "approved" | "rejected";
+
+export interface ListingSummary {
+  id: string;
+  sellerId: string;
+  eventId: string;
+  eventName: string | null;
+  venue: string | null;
+  startsAt: number | null;
+  tierId: string;
+  tierName: string | null;
+  faceValueInCents: number | null;
+  quantity: number;
+  note: string | null;
+  status: ListingStatus;
+  submittedAt: number;
+  decidedAt: number | null;
+  reason: string | null;
 }

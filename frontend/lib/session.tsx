@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { fetchMe, signOut } from "./api";
+import { applyTheme } from "./theme";
 import type { User } from "./types";
 
 interface SessionValue {
@@ -18,13 +19,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const remember = useCallback((next: User | null) => {
+    setUser(next);
+    if (next) {
+      applyTheme(next.theme);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     fetchMe()
       .then((result) => {
         if (!cancelled) {
-          setUser(result);
+          remember(result);
         }
       })
       .catch(() => {
@@ -41,15 +49,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [remember]);
 
   const refresh = useCallback(async () => {
     try {
-      setUser(await fetchMe());
+      remember(await fetchMe());
     } catch {
       setUser(null);
     }
-  }, []);
+  }, [remember]);
 
   const logout = useCallback(async () => {
     try {
@@ -60,7 +68,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <SessionContext.Provider value={{ user, loading, setUser, refresh, logout }}>
+    <SessionContext.Provider
+      value={{ user, loading, setUser: remember, refresh, logout }}
+    >
       {children}
     </SessionContext.Provider>
   );

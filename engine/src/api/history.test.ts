@@ -18,7 +18,7 @@ describe("history routes without a database", () => {
     seedEvent(built.state);
     await app.ready();
 
-    session = await signUp(app, "alice@example.com", "customer");
+    session = await signUp(app, "alice@example.com");
   });
 
   afterEach(async () => {

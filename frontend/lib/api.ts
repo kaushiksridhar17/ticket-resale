@@ -1,6 +1,8 @@
 import type {
   AccountSummary,
-  Role,
+  ListingStatus,
+  ListingSummary,
+  Theme,
   EventReport,
   EventSummary,
   NewEvent,
@@ -63,17 +65,40 @@ export interface Credentials {
 }
 
 export function register(
-  credentials: Credentials & { role: Exclude<Role, "admin">; displayName?: string }
+  account: Credentials & {
+    buys: boolean;
+    sells: boolean;
+    displayName?: string;
+  }
 ): Promise<{ user: User }> {
   return request("/auth/register", {
     method: "POST",
-    body: JSON.stringify(credentials),
+    body: JSON.stringify(account),
   });
 }
 
-export function logIn(
-  credentials: Credentials & { role?: Role }
-): Promise<{ user: User }> {
+export function updateSettings(changes: {
+  buys?: boolean;
+  sells?: boolean;
+  theme?: Theme;
+}): Promise<{ user: User }> {
+  return request("/me/settings", {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
+export function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  return request("/me/password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export function logIn(credentials: Credentials): Promise<{ user: User }> {
   return request("/auth/login", {
     method: "POST",
     body: JSON.stringify(credentials),
@@ -178,4 +203,49 @@ export function placeOrder(
 
 export function cancelOrder(orderId: string): Promise<{ order: Order }> {
   return request(`/orders/${orderId}`, { method: "DELETE" });
+}
+
+export function fetchListings(
+  status?: ListingStatus
+): Promise<{ listings: ListingSummary[]; pending?: number }> {
+  return request(`/listings${status ? `?status=${status}` : ""}`);
+}
+
+export async function submitListing(form: FormData): Promise<{ listing: ListingSummary }> {
+  const response = await fetch(`${BASE}/listings`, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with ${response.status}`;
+    try {
+      const body = (await response.json()) as { error?: string };
+      message = body.error ?? message;
+    } catch {
+      // no JSON body
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return (await response.json()) as { listing: ListingSummary };
+}
+
+export function evidenceUrl(listingId: string): string {
+  return `${BASE}/listings/${listingId}/evidence`;
+}
+
+export function approveListing(listingId: string): Promise<{ listing: ListingSummary }> {
+  return request(`/listings/${listingId}/approve`, { method: "POST" });
+}
+
+export function rejectListing(
+  listingId: string,
+  reason: string
+): Promise<{ listing: ListingSummary }> {
+  return request(`/listings/${listingId}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }

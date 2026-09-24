@@ -25,7 +25,7 @@ describe("session cookie flags", () => {
     const registered = await app.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "a@b.co", password: TEST_PASSWORD, role: "customer" },
+      payload: { email: "a@b.co", password: TEST_PASSWORD, buys: true, sells: false },
     });
     await app.close();
     return registered.cookies.find((c) => c.name === "session")!;

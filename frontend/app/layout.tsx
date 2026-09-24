@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo, Instrument_Serif } from "next/font/google";
 import { SessionProvider } from "@/lib/session";
+import { THEME_SCRIPT } from "@/lib/theme";
 import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
@@ -26,7 +27,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${display.variable} ${sans.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="flex min-h-full flex-col">
         <SessionProvider>
           <AppShell>{children}</AppShell>
