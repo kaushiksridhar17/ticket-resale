@@ -110,7 +110,7 @@ export function registerEventRoutes(
   });
 
   app.post("/events", { schema: createEventSchema }, async (request, reply) => {
-    const user = requireRole(request, "organizer");
+    requireRole(request, "admin");
     const body = request.body as CreateEventBody;
 
     const problem = validateEvent(body, now());
@@ -120,7 +120,7 @@ export function registerEventRoutes(
 
     const event: EventDefinition = {
       id: state.nextEventId(),
-      organizerId: user.id,
+      organizerId: requireUser(request).id,
       name: body.name.trim(),
       venue: body.venue.trim(),
       startsAt: body.startsAt,
@@ -208,15 +208,11 @@ function ownedEvent(
   state: ExchangeState,
   eventId: string
 ): EventDefinition | null {
-  const user = requireRole(request, "organizer");
+  requireRole(request, "admin");
   const event = state.events.get(eventId);
 
   if (!event) {
     reply.code(404).send({ error: `Unknown event ${eventId}` });
-    return null;
-  }
-  if (event.organizerId !== user.id) {
-    reply.code(403).send({ error: "That event is not yours" });
     return null;
   }
 

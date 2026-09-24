@@ -1,4 +1,5 @@
 import { buildServer } from "./server.js";
+import { DEFAULT_COST } from "./auth/passwords.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "0.0.0.0";
@@ -28,6 +29,14 @@ async function main() {
       }
     }
 
+    if (Number(process.env.PASSWORD_COST) < DEFAULT_COST) {
+      console.warn(
+        `PASSWORD_COST is below ${DEFAULT_COST}, which makes stored passwords ` +
+          "cheaper to crack. It is there so the benchmark and the tests do not " +
+          "spend their time hashing; leave it unset anywhere real."
+      );
+    }
+
     if (process.env.SECURE_COOKIES === "false") {
       console.warn(
         "SECURE_COOKIES=false, so sign-in cookies travel over plain HTTP. " +
@@ -36,7 +45,7 @@ async function main() {
     }
   }
 
-  const { app, state, database } = await buildServer({
+  const { app, state, database, adminEmail } = await buildServer({
     logger: LOGGER,
     databaseUrl: DATABASE_URL,
     ...(LOG_PATH ? { logPath: LOG_PATH } : {}),
@@ -49,11 +58,13 @@ async function main() {
     console.log(
       `logger=${LOGGER} database=${database ? "on" : "off"}`
     );
+    if (adminEmail) {
+      console.log(`Admin account ready for ${adminEmail}`);
+    }
     if (!DATABASE_URL) {
       console.warn(
         "No DATABASE_URL. Events survive in the log but accounts do not: " +
-          "everyone gets a new identity when this restarts, and organizers " +
-          "lose their events."
+          "every account has to be created again when this restarts."
       );
     }
     if (state.recovered > 0) {

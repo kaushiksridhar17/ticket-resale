@@ -1,5 +1,5 @@
 import pg from "pg";
-import { SCHEMA } from "./schema.js";
+import { migrate } from "./migrate.js";
 
 export type Database = pg.Pool;
 
@@ -11,7 +11,7 @@ export async function connectDatabase(url: string): Promise<Database> {
   });
 
   await waitForDatabase(pool);
-  await pool.query(SCHEMA);
+  await migrate(pool);
   return pool;
 }
 

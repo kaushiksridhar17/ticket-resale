@@ -1,48 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildServer } from "../server.js";
+import { signIn, signUp } from "../testAuth.js";
 
 const HOUR = 60 * 60 * 1000;
 
 describe("event and ticket routes", () => {
   let app: FastifyInstance;
-  let codes: { email: string; code: string }[];
-  let organizer: string;
-  let rival: string;
-  let fan: string;
+  let admin: string;
+  let seller: string;
+  let customer: string;
 
   beforeEach(async () => {
-    codes = [];
     const built = await buildServer({
       logPath: null,
       authPepper: "test-pepper",
-      organizerEmails: ["promoter@example.com", "rival@example.com"],
-      sendCode: (email, code) => {
-        codes.push({ email, code });
+      admin: {
+        email: "admin@example.com",
+        password: "admin-password",
+        name: "Admin",
       },
     });
     app = built.app;
     await app.ready();
 
-    organizer = await signIn("promoter@example.com");
-    rival = await signIn("rival@example.com");
-    fan = await signIn("fan@example.com");
+    admin = await signIn(app, "admin@example.com", "admin-password");
+    seller = await signUp(app, "seller@example.com", "seller");
+    customer = await signUp(app, "customer@example.com", "customer");
   });
 
   afterEach(async () => {
     await app.close();
   });
-
-  async function signIn(email: string): Promise<string> {
-    await app.inject({ method: "POST", url: "/auth/request", payload: { email } });
-    const code = codes[codes.length - 1]!.code;
-    const response = await app.inject({
-      method: "POST",
-      url: "/auth/verify",
-      payload: { email, code },
-    });
-    return response.cookies.find((entry) => entry.name === "session")!.value;
-  }
 
   function eventBody(overrides: Record<string, unknown> = {}) {
     const closesAt = Date.now() + 24 * HOUR;
@@ -64,7 +53,7 @@ describe("event and ticket routes", () => {
   }
 
   async function createEvent(
-    session = organizer,
+    session = admin,
     overrides: Record<string, unknown> = {}
   ) {
     return app.inject({
@@ -75,7 +64,7 @@ describe("event and ticket routes", () => {
     });
   }
 
-  async function issue(eventId: string, count: number, session = organizer) {
+  async function issue(eventId: string, count: number, session = admin) {
     return app.inject({
       method: "POST",
       url: `/events/${eventId}/tickets`,
@@ -84,7 +73,7 @@ describe("event and ticket routes", () => {
     });
   }
 
-  it("makes the signed-in organizer the owner of a new event", async () => {
+  it("records the admin as the owner of a new event", async () => {
     const response = await createEvent();
 
     expect(response.statusCode).toBe(201);
@@ -95,12 +84,22 @@ describe("event and ticket routes", () => {
     expect(event.tiers[0].symbol).toBe(`${event.id}:GA`);
     expect(event.tiers[0].issued).toBe(0);
 
-    const me = await app.inject({ method: "GET", url: "/me", cookies: { session: organizer } });
+    const me = await app.inject({
+      method: "GET",
+      url: "/me",
+      cookies: { session: admin },
+    });
     expect(event.organizerId).toBe(me.json().user.id);
   });
 
-  it("refuses to create an event for an attendee", async () => {
-    const response = await createEvent(fan);
+  it("refuses to create an event for a customer", async () => {
+    const response = await createEvent(customer);
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("refuses to create an event for a seller", async () => {
+    const response = await createEvent(seller);
 
     expect(response.statusCode).toBe(403);
   });
@@ -116,7 +115,7 @@ describe("event and ticket routes", () => {
   });
 
   it("rejects a sales cutoff in the past", async () => {
-    const response = await createEvent(organizer, {
+    const response = await createEvent(admin, {
       salesCloseAt: Date.now() - HOUR,
     });
 
@@ -125,7 +124,7 @@ describe("event and ticket routes", () => {
 
   it("rejects a cutoff that lands after the doors open", async () => {
     const closesAt = Date.now() + 48 * HOUR;
-    const response = await createEvent(organizer, {
+    const response = await createEvent(admin, {
       salesCloseAt: closesAt,
       startsAt: closesAt - HOUR,
     });
@@ -134,7 +133,7 @@ describe("event and ticket routes", () => {
   });
 
   it("rejects two tiers with the same id", async () => {
-    const response = await createEvent(organizer, {
+    const response = await createEvent(admin, {
       tiers: [
         { tierId: "GA", name: "One", faceValueInCents: 1000, perPersonLimit: 2 },
         { tierId: "GA", name: "Two", faceValueInCents: 2000, perPersonLimit: 2 },
@@ -145,7 +144,7 @@ describe("event and ticket routes", () => {
   });
 
   it("rejects an event with no tiers", async () => {
-    const response = await createEvent(organizer, { tiers: [] });
+    const response = await createEvent(admin, { tiers: [] });
 
     expect(response.statusCode).toBe(400);
   });
@@ -167,7 +166,7 @@ describe("event and ticket routes", () => {
     expect(response.statusCode).toBe(404);
   });
 
-  it("issues tickets into the organizer's own account", async () => {
+  it("issues tickets into the admin's own account", async () => {
     const { event } = (await createEvent()).json();
 
     const response = await issue(event.id, 50);
@@ -186,10 +185,10 @@ describe("event and ticket routes", () => {
     expect(response.json().issued).toBe(15);
   });
 
-  it("refuses to let one organizer issue tickets for another's event", async () => {
+  it("refuses to let a seller issue tickets", async () => {
     const { event } = (await createEvent()).json();
 
-    const response = await issue(event.id, 10, rival);
+    const response = await issue(event.id, 10, seller);
 
     expect(response.statusCode).toBe(403);
   });
@@ -201,7 +200,7 @@ describe("event and ticket routes", () => {
       method: "POST",
       url: `/events/${event.id}/tickets`,
       payload: { tierId: "VIP", count: 10 },
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
 
     expect(response.statusCode).toBe(404);
@@ -214,12 +213,12 @@ describe("event and ticket routes", () => {
     const mine = await app.inject({
       method: "GET",
       url: "/tickets",
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
     const theirs = await app.inject({
       method: "GET",
       url: "/tickets",
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
 
     expect(mine.json().tickets).toHaveLength(3);
@@ -248,19 +247,19 @@ describe("event and ticket routes", () => {
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 2 },
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
     await app.inject({
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "buy", type: "limit", priceInCents: 1500, quantity: 2 },
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
 
     const mine = await app.inject({
       method: "GET",
       url: "/tickets",
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
 
     expect(mine.json().tickets.map((t: { serial: number }) => t.serial)).toEqual([1, 2]);
@@ -276,13 +275,13 @@ describe("event and ticket routes", () => {
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 3 },
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
     await app.inject({
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "buy", type: "limit", priceInCents: 1000, quantity: 4 },
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
 
     const response = await app.inject({ method: "GET", url: `/events/${event.id}` });
@@ -303,13 +302,13 @@ describe("event and ticket routes", () => {
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 3 },
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
 
     const closed = await app.inject({
       method: "POST",
       url: `/events/${event.id}/close`,
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
 
     expect(closed.json().event.status).toBe("closed");
@@ -320,7 +319,7 @@ describe("event and ticket routes", () => {
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "buy", type: "limit", priceInCents: 1500, quantity: 1 },
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
     expect(late.statusCode).toBe(422);
   });
@@ -330,7 +329,7 @@ describe("event and ticket routes", () => {
     await app.inject({
       method: "POST",
       url: `/events/${event.id}/close`,
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
 
     const response = await issue(event.id, 5);
@@ -344,31 +343,31 @@ describe("event and ticket routes", () => {
     const response = await app.inject({
       method: "POST",
       url: `/events/${event.id}/cancel`,
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
 
     expect(response.json().event.status).toBe("cancelled");
   });
 
-  it("refuses to let a rival organizer close or cancel", async () => {
+  it("refuses to let a seller or a customer close or cancel", async () => {
     const { event } = (await createEvent()).json();
 
     const closed = await app.inject({
       method: "POST",
       url: `/events/${event.id}/close`,
-      cookies: { session: rival },
+      cookies: { session: seller },
     });
     const cancelled = await app.inject({
       method: "POST",
       url: `/events/${event.id}/cancel`,
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
 
     expect(closed.statusCode).toBe(403);
     expect(cancelled.statusCode).toBe(403);
   });
 
-  it("reports what has happened to an organizer's own event", async () => {
+  it("reports what has happened to an event", async () => {
     const { event } = (await createEvent()).json();
     await issue(event.id, 6);
     const symbol = `${event.id}:GA`;
@@ -377,25 +376,25 @@ describe("event and ticket routes", () => {
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "sell", type: "limit", priceInCents: 1500, quantity: 2 },
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
     await app.inject({
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "buy", type: "limit", priceInCents: 1500, quantity: 2 },
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
     await app.inject({
       method: "POST",
       url: "/orders",
       payload: { symbol, side: "sell", type: "limit", priceInCents: 1200, quantity: 1 },
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
 
     const response = await app.inject({
       method: "GET",
       url: `/events/${event.id}/report`,
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
 
     expect(response.statusCode).toBe(200);
@@ -418,6 +417,8 @@ describe("event and ticket routes", () => {
     await issue(event.id, 4);
     const symbol = `${event.id}:GA`;
 
+    const other = await signUp(app, "other@example.com", "customer");
+
     const sell = (session: string, price: number, quantity: number) =>
       app.inject({
         method: "POST",
@@ -433,15 +434,15 @@ describe("event and ticket routes", () => {
         cookies: { session },
       });
 
-    await sell(organizer, 1500, 1);
-    await buy(fan, 1500, 1);
-    await sell(fan, 1500, 1);
-    await buy(rival, 1500, 1);
+    await sell(admin, 1500, 1);
+    await buy(customer, 1500, 1);
+    await sell(customer, 1500, 1);
+    await buy(other, 1500, 1);
 
     const response = await app.inject({
       method: "GET",
       url: `/events/${event.id}/report`,
-      cookies: { session: organizer },
+      cookies: { session: admin },
     });
 
     expect(response.json().tiers[0]).toMatchObject({
@@ -451,22 +452,22 @@ describe("event and ticket routes", () => {
     });
   });
 
-  it("refuses to report on somebody else's event", async () => {
+  it("refuses to report on an event to anybody but an admin", async () => {
     const { event } = (await createEvent()).json();
 
-    const rivalView = await app.inject({
+    const sellerView = await app.inject({
       method: "GET",
       url: `/events/${event.id}/report`,
-      cookies: { session: rival },
+      cookies: { session: seller },
     });
-    const fanView = await app.inject({
+    const customerView = await app.inject({
       method: "GET",
       url: `/events/${event.id}/report`,
-      cookies: { session: fan },
+      cookies: { session: customer },
     });
 
-    expect(rivalView.statusCode).toBe(403);
-    expect(fanView.statusCode).toBe(403);
+    expect(sellerView.statusCode).toBe(403);
+    expect(customerView.statusCode).toBe(403);
   });
 
   it("gives each new event its own id", async () => {

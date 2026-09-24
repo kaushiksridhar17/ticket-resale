@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildServer } from "../server.js";
+import { TEST_PASSWORD } from "../testAuth.js";
 
 describe("session cookie flags", () => {
   const original = { ...process.env };
@@ -15,21 +16,19 @@ describe("session cookie flags", () => {
         process.env[key] = value;
       }
     }
-    const codes: string[] = [];
     const { app } = await buildServer({
       logPath: null,
       authPepper: "p",
-      sendCode: (_e, c) => void codes.push(c),
+      admin: null,
     });
     await app.ready();
-    await app.inject({ method: "POST", url: "/auth/request", payload: { email: "a@b.co" } });
-    const verified = await app.inject({
+    const registered = await app.inject({
       method: "POST",
-      url: "/auth/verify",
-      payload: { email: "a@b.co", code: codes[0] },
+      url: "/auth/register",
+      payload: { email: "a@b.co", password: TEST_PASSWORD, role: "customer" },
     });
     await app.close();
-    return verified.cookies.find((c) => c.name === "session")!;
+    return registered.cookies.find((c) => c.name === "session")!;
   }
 
   it("is not secure when running plainly", async () => {

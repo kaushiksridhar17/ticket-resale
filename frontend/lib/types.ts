@@ -1,8 +1,11 @@
+export type Role = "admin" | "seller" | "customer";
+
 export interface User {
   id: string;
   email: string;
   displayName: string | null;
-  role: "attendee" | "organizer" | "staff";
+  role: Role;
+  status: "active" | "suspended";
 }
 
 export type Side = "buy" | "sell";

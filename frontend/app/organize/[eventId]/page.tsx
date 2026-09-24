@@ -67,8 +67,8 @@ export default function ManageEventPage() {
     return <p className="text-sm text-muted">Loading</p>;
   }
 
-  if (!user || user.role !== "organizer") {
-    return <p className="text-sm text-muted">Only organizers can see this.</p>;
+  if (!user || user.role !== "admin") {
+    return <p className="text-sm text-muted">Only the admin can see this.</p>;
   }
 
   if (error) {

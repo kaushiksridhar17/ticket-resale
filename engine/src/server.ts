@@ -15,9 +15,9 @@ import { PersistenceWriter } from "./db/writer.js";
 import { AuthService } from "./auth/service.js";
 import { MemoryAuthStore } from "./auth/memoryStore.js";
 import { PostgresAuthStore } from "./auth/postgresStore.js";
-import { consoleMailer, type SendCode } from "./auth/mailer.js";
 import { registerAuthPlugin, NotAllowed, NotAuthenticated } from "./auth/plugin.js";
 import { registerAuthRoutes } from "./auth/routes.js";
+import { bootstrapAdmin, findAdmin, type AdminDetails } from "./auth/bootstrap.js";
 import type { Trade } from "./types.js";
 
 export interface ServerOptions {
@@ -26,20 +26,8 @@ export interface ServerOptions {
   broadcastIntervalMs?: number;
   databaseUrl?: string | null;
   authPepper?: string;
-  sendCode?: SendCode;
-  organizerEmails?: string[];
-  staffEmails?: string[];
+  admin?: AdminDetails | null;
   doorKey?: string;
-}
-
-function parseEmails(raw: string | undefined): string[] {
-  if (!raw) {
-    return [];
-  }
-  return raw
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
 }
 
 export async function buildServer(options: ServerOptions = {}) {
@@ -72,11 +60,13 @@ export async function buildServer(options: ServerOptions = {}) {
     : new MemoryAuthStore();
   const auth = new AuthService(authStore, {
     pepper: options.authPepper ?? process.env.AUTH_PEPPER ?? "development-pepper",
-    sendCode: options.sendCode ?? consoleMailer(),
-    organizerEmails:
-      options.organizerEmails ?? parseEmails(process.env.ORGANIZER_EMAILS),
-    staffEmails: options.staffEmails ?? parseEmails(process.env.STAFF_EMAILS),
   });
+
+  const admin =
+    options.admin !== undefined
+      ? options.admin
+      : findAdmin(process.env.ADMIN_FILE ?? "admin.json");
+  const adminEmail = await bootstrapAdmin(auth, admin);
 
   const passes = new PassIssuer(
     options.doorKey ?? process.env.DOOR_KEY ?? "development-door-key"
@@ -124,5 +114,5 @@ export async function buildServer(options: ServerOptions = {}) {
     await database?.end();
   });
 
-  return { app, state, broadcaster, database, writer, auth };
+  return { app, state, broadcaster, database, writer, auth, adminEmail };
 }

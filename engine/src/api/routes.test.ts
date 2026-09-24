@@ -3,12 +3,12 @@ import { buildServer } from "../server.js";
 import type { FastifyInstance } from "fastify";
 import { ExchangeState } from "../exchangeState.js";
 import { DEMO_SYMBOL, seedEvent } from "../testEvent.js";
+import { signUp, userIdFor } from "../testAuth.js";
 
 const OTHER_SYMBOL = "evt_other:GA";
 
 describe("HTTP API", () => {
   let app: FastifyInstance;
-  let codes: { email: string; code: string }[];
   let alice: string;
   let bob: string;
   let state: ExchangeState;
@@ -16,22 +16,19 @@ describe("HTTP API", () => {
   let bobId: string;
 
   beforeEach(async () => {
-    codes = [];
     const built = await buildServer({
       logPath: null,
       authPepper: "test-pepper",
-      sendCode: (email, code) => {
-        codes.push({ email, code });
-      },
+      admin: null,
     });
     app = built.app;
     state = built.state;
     await app.ready();
 
-    alice = await signIn("alice@example.com");
-    bob = await signIn("bob@example.com");
-    aliceId = await userIdFor(alice);
-    bobId = await userIdFor(bob);
+    alice = await signUp(app, "alice@example.com", "customer");
+    bob = await signUp(app, "bob@example.com", "customer");
+    aliceId = await userIdFor(app, alice);
+    bobId = await userIdFor(app, bob);
 
     seedEvent(state, { issueTo: [aliceId, bobId], count: 1000 });
     seedEvent(state, { eventId: "evt_other" });
@@ -40,30 +37,6 @@ describe("HTTP API", () => {
   afterEach(async () => {
     await app.close();
   });
-
-  async function signIn(email: string): Promise<string> {
-    await app.inject({
-      method: "POST",
-      url: "/auth/request",
-      payload: { email },
-    });
-    const code = codes[codes.length - 1]!.code;
-    const response = await app.inject({
-      method: "POST",
-      url: "/auth/verify",
-      payload: { email, code },
-    });
-    return response.cookies.find((entry) => entry.name === "session")!.value;
-  }
-
-  async function userIdFor(session: string): Promise<string> {
-    const response = await app.inject({
-      method: "GET",
-      url: "/account",
-      cookies: { session },
-    });
-    return response.json().userId;
-  }
 
   async function placeOrder(session: string, body: Record<string, unknown>) {
     return app.inject({

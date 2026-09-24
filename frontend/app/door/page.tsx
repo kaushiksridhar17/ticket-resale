@@ -132,13 +132,13 @@ export default function DoorPage() {
     return <p className="text-sm text-muted">Loading</p>;
   }
 
-  if (!user || (user.role !== "staff" && user.role !== "organizer")) {
+  if (!user || user.role !== "admin") {
     return (
       <div className="max-w-lg">
         <h1 className="font-display text-4xl leading-tight">The door</h1>
         <p className="mt-4 text-sm leading-relaxed text-muted">
-          Only door staff and organizers can scan people in. Get your address
-          added to STAFF_EMAILS, then sign in again.
+          Scanning people in is the admin account's job. Sign in as the admin
+          to work the door.
         </p>
       </div>
     );
@@ -246,7 +246,7 @@ Type it instead
       <p className="mt-10 text-xs leading-relaxed text-muted">
         Codes last half a minute and die when a ticket changes hands.{" "}
         <Link href="/organize" className="underline underline-offset-4">
-          The organizer pages
+          The admin pages
         </Link>{" "}
         show who holds what.
       </p>

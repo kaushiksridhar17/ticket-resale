@@ -1,4 +1,3 @@
-export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS trades (
   id TEXT PRIMARY KEY,
   symbol TEXT NOT NULL,
@@ -121,4 +120,3 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
-`;

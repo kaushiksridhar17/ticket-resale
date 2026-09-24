@@ -69,11 +69,22 @@ refused even inside its 30 seconds.
 
 ![Refused](docs/images/door-refused.png)
 
-## For organisers
+## Roles
 
-Print tickets, release them when you want, and watch where they go.
+There are three, and an account is only ever one of them. Customers claim
+tickets. Sellers put up tickets they cannot use. The admin puts on the
+events, approves what sellers submit, and works the door.
 
-![Organiser](docs/images/organizer.png)
+Sign-in is by email and password, with a separate entrance for each role, so
+signing in at the wrong one is refused rather than quietly letting you
+through. Passwords are stored as scrypt hashes and never leave the server.
+
+The admin account is not created through the site. It comes from
+`engine/admin.json`, or from `ADMIN_EMAIL` and `ADMIN_PASSWORD` under Docker,
+and it is only created the first time the engine starts with no admin
+already there.
+
+![Admin](docs/images/organizer.png)
 
 Printing and releasing are separate because they are separate decisions.
 Releasing places a sell order, so the initial on-sale and every later
@@ -92,20 +103,26 @@ cd ticket-resale
 cp .env.example .env
 ```
 
-Put your address in `ORGANIZER_EMAILS` and a second one in
-`STAFF_EMAILS`, then:
+Put your own address and a password in `ADMIN_EMAIL` and `ADMIN_PASSWORD`,
+then:
 
 ```bash
 docker compose up --build
 ```
 
-Open http://localhost:3000. Sign-in codes print in the compose output
-rather than being emailed.
+Open http://localhost:3000 and sign in at the admin entrance with what you
+just put in `.env`. Everyone else creates their own account.
 
-Without Docker, run the engine and the frontend separately:
+Without Docker, run the engine and the frontend separately. The admin
+details come from a file instead:
 
 ```bash
-cd engine && npm install && npm run dev
+cd engine
+cp admin.example.json admin.json
+npm install && npm run dev
+```
+
+```bash
 cd frontend && npm install && npm run dev
 ```
 
@@ -150,7 +167,7 @@ cd engine && npm test
 
 ![Tests](docs/images/tests.png)
 
-267 of them, including property-based tests over thousands of randomised
+296 of them, including property-based tests over thousands of randomised
 order sequences: tickets are never duplicated or lost, every account's
 serial count matches its balance, total hand-overs equal total quantity
 traded, and the same sequence of orders always produces the same
@@ -174,8 +191,8 @@ engine/
     events/             events and tiers
     tickets/            serials and chain of custody
     door/               pass signing and scanning
-    auth/               emailed codes, sessions, roles
-    db/                 batched writer and Postgres schema
+    auth/               passwords, sessions, roles
+    db/                 batched writer, migrations, Postgres schema
   bench/                engine throughput and the drop benchmark
 frontend/               Next.js, one page per thing you can do
 ```

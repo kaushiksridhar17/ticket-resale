@@ -4,6 +4,7 @@ import { buildServer } from "../server.js";
 import type { FastifyInstance } from "fastify";
 import { ExchangeState } from "../exchangeState.js";
 import { DEMO_EVENT_ID, DEMO_SYMBOL, DEMO_TIER_ID, seedEvent } from "../testEvent.js";
+import { signUp, userIdFor } from "../testAuth.js";
 
 const OTHER_SYMBOL = "evt_other:GA";
 
@@ -20,19 +21,15 @@ describe("WebSocket broadcasting", () => {
   let state: ExchangeState;
   let url: string;
   const sockets: WebSocket[] = [];
-  const codes: { email: string; code: string }[] = [];
   const sessions = new Map<string, string>();
 
   beforeEach(async () => {
-    codes.length = 0;
     sessions.clear();
     const built = await buildServer({
       logPath: null,
       broadcastIntervalMs: 20,
       authPepper: "test-pepper",
-      sendCode: (email, code) => {
-        codes.push({ email, code });
-      },
+      admin: null,
     });
     app = built.app;
     state = built.state;
@@ -93,22 +90,13 @@ describe("WebSocket broadcasting", () => {
     if (existing) {
       return existing;
     }
-    const email = `${userId}@example.com`;
-    await app.inject({ method: "POST", url: "/auth/request", payload: { email } });
-    const code = codes[codes.length - 1]!.code;
-    const verified = await app.inject({
-      method: "POST",
-      url: "/auth/verify",
-      payload: { email, code },
-    });
-    const token = verified.cookies.find((entry) => entry.name === "session")!.value;
-
-    const account = await app.inject({
-      method: "GET",
-      url: "/account",
-      cookies: { session: token },
-    });
-    state.issueTickets(DEMO_EVENT_ID, DEMO_TIER_ID, 1000, account.json().userId);
+    const token = await signUp(app, `${userId}@example.com`, "customer");
+    state.issueTickets(
+      DEMO_EVENT_ID,
+      DEMO_TIER_ID,
+      1000,
+      await userIdFor(app, token)
+    );
 
     sessions.set(userId, token);
     return token;
@@ -306,7 +294,7 @@ describe("WebSocket broadcasting", () => {
       logPath: null,
       broadcastIntervalMs: 20,
       authPepper: "test-pepper",
-      sendCode: () => undefined,
+      admin: null,
     });
     await built.app.listen({ port: 0, host: "127.0.0.1" });
 

@@ -21,9 +21,7 @@ export default function OrganizePage() {
     fetchEvents()
       .then((result) => {
         if (!cancelled) {
-          setEvents(
-            result.events.filter((event) => event.organizerId === user.id)
-          );
+          setEvents(result.events);
         }
       })
       .catch(() => {
@@ -41,15 +39,15 @@ export default function OrganizePage() {
     return <p className="text-sm text-muted">Loading</p>;
   }
 
-  if (!user || user.role !== "organizer") {
+  if (!user || user.role !== "admin") {
     return (
       <div className="max-w-lg">
         <h1 className="font-display text-4xl leading-tight">
-          This is the organizer side
+          This is the admin side
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-muted">
-          Only vouched-for addresses can put on an event. Get yours added to
-          ORGANIZER_EMAILS, then sign in again.
+          Events are put on by the account that runs the site. Sign in as the
+          admin to see them.
         </p>
       </div>
     );

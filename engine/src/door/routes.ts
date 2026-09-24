@@ -75,7 +75,7 @@ export function registerDoorRoutes(app: FastifyInstance, deps: DoorDeps): void {
   });
 
   app.post("/scan", { schema: scanSchema }, async (request, reply) => {
-    requireRole(request, "staff", "organizer");
+    requireRole(request, "admin");
     const { token, eventId } = request.body as {
       token: string;
       eventId: string;

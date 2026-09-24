@@ -1,5 +1,6 @@
 import type {
   AccountSummary,
+  Role,
   EventReport,
   EventSummary,
   NewEvent,
@@ -56,20 +57,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function requestSignInCode(email: string): Promise<{ sent: boolean }> {
-  return request("/auth/request", {
+export interface Credentials {
+  email: string;
+  password: string;
+}
+
+export function register(
+  credentials: Credentials & { role: Exclude<Role, "admin">; displayName?: string }
+): Promise<{ user: User }> {
+  return request("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email }),
+    body: JSON.stringify(credentials),
   });
 }
 
-export function verifySignInCode(
-  email: string,
-  code: string
+export function logIn(
+  credentials: Credentials & { role?: Role }
 ): Promise<{ user: User }> {
-  return request("/auth/verify", {
+  return request("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, code }),
+    body: JSON.stringify(credentials),
   });
 }
 

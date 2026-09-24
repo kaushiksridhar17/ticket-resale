@@ -1,19 +1,20 @@
-export type Role = "attendee" | "organizer" | "staff";
+export type Role = "admin" | "seller" | "customer";
+
+export const ROLES: Role[] = ["admin", "seller", "customer"];
+
+export type UserStatus = "active" | "suspended";
 
 export interface User {
   id: string;
   email: string;
   displayName: string | null;
   role: Role;
+  status: UserStatus;
   createdAt: number;
 }
 
-export interface PendingCode {
-  email: string;
-  codeHash: string;
-  expiresAt: number;
-  requestedAt: number;
-  attempts: number;
+export interface NewUser extends User {
+  passwordHash: string;
 }
 
 export interface SessionRecord {
@@ -25,14 +26,14 @@ export interface SessionRecord {
 export interface AuthStore {
   findUserByEmail(email: string): Promise<User | null>;
   getUser(userId: string): Promise<User | null>;
-  createUser(user: User): Promise<void>;
-  setRole(userId: string, role: Role): Promise<void>;
-  savePendingCode(pending: PendingCode): Promise<void>;
-  getPendingCode(email: string): Promise<PendingCode | null>;
-  deletePendingCode(email: string): Promise<void>;
-  recordAttempt(email: string): Promise<number>;
+  getPasswordHash(userId: string): Promise<string | null>;
+  createUser(user: NewUser): Promise<void>;
+  setPassword(userId: string, passwordHash: string): Promise<void>;
+  setStatus(userId: string, status: UserStatus): Promise<void>;
+  countByRole(role: Role): Promise<number>;
   createSession(session: SessionRecord): Promise<void>;
   getSession(tokenHash: string): Promise<SessionRecord | null>;
   deleteSession(tokenHash: string): Promise<void>;
+  deleteSessionsFor(userId: string): Promise<void>;
   deleteExpired(now: number): Promise<void>;
 }

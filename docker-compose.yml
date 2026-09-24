@@ -25,8 +25,9 @@ services:
       DATABASE_URL: postgres://facevalue:facevalue@db:5432/facevalue
       AUTH_PEPPER: ${AUTH_PEPPER:-development-pepper}
       DOOR_KEY: ${DOOR_KEY:-development-door-key}
-      ORGANIZER_EMAILS: ${ORGANIZER_EMAILS:-}
-      STAFF_EMAILS: ${STAFF_EMAILS:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-}
       SECURE_COOKIES: "false"
     volumes:
       - engine-data:/app/data

@@ -1,20 +1,20 @@
 import type { Database } from "../db/database.js";
-import type { AuthStore, PendingCode, Role, SessionRecord, User } from "./types.js";
+import type {
+  AuthStore,
+  NewUser,
+  Role,
+  SessionRecord,
+  User,
+  UserStatus,
+} from "./types.js";
 
 interface UserRow {
   id: string;
   email: string;
   display_name: string | null;
   role: Role;
+  status: UserStatus;
   created_at: Date;
-}
-
-interface CodeRow {
-  email: string;
-  code_hash: string;
-  expires_at: Date;
-  requested_at: Date;
-  attempts: number;
 }
 
 interface SessionRow {
@@ -23,12 +23,14 @@ interface SessionRow {
   expires_at: Date;
 }
 
+const COLUMNS = "id, email, display_name, role, status, created_at";
+
 export class PostgresAuthStore implements AuthStore {
   constructor(private readonly db: Database) {}
 
   async findUserByEmail(email: string): Promise<User | null> {
     const result = await this.db.query<UserRow>(
-      "SELECT id, email, display_name, role, created_at FROM users WHERE email = $1",
+      `SELECT ${COLUMNS} FROM users WHERE email = $1`,
       [email]
     );
     return result.rows[0] ? toUser(result.rows[0]) : null;
@@ -36,74 +38,56 @@ export class PostgresAuthStore implements AuthStore {
 
   async getUser(userId: string): Promise<User | null> {
     const result = await this.db.query<UserRow>(
-      "SELECT id, email, display_name, role, created_at FROM users WHERE id = $1",
+      `SELECT ${COLUMNS} FROM users WHERE id = $1`,
       [userId]
     );
     return result.rows[0] ? toUser(result.rows[0]) : null;
   }
 
-  async createUser(user: User): Promise<void> {
-    await this.db.query(
-      `INSERT INTO users (id, email, display_name, role, created_at)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (email) DO NOTHING`,
-      [user.id, user.email, user.displayName, user.role, new Date(user.createdAt)]
+  async getPasswordHash(userId: string): Promise<string | null> {
+    const result = await this.db.query<{ password_hash: string }>(
+      "SELECT password_hash FROM users WHERE id = $1",
+      [userId]
     );
+    return result.rows[0]?.password_hash ?? null;
   }
 
-  async setRole(userId: string, role: Role): Promise<void> {
-    await this.db.query("UPDATE users SET role = $2 WHERE id = $1", [
-      userId,
-      role,
-    ]);
-  }
-
-  async savePendingCode(pending: PendingCode): Promise<void> {
+  async createUser(user: NewUser): Promise<void> {
     await this.db.query(
-      `INSERT INTO login_codes (email, code_hash, expires_at, requested_at, attempts)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (email) DO UPDATE SET
-         code_hash = EXCLUDED.code_hash,
-         expires_at = EXCLUDED.expires_at,
-         requested_at = EXCLUDED.requested_at,
-         attempts = 0`,
+      `INSERT INTO users (id, email, display_name, role, status, password_hash, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
-        pending.email,
-        pending.codeHash,
-        new Date(pending.expiresAt),
-        new Date(pending.requestedAt),
-        pending.attempts,
+        user.id,
+        user.email,
+        user.displayName,
+        user.role,
+        user.status,
+        user.passwordHash,
+        new Date(user.createdAt),
       ]
     );
   }
 
-  async getPendingCode(email: string): Promise<PendingCode | null> {
-    const result = await this.db.query<CodeRow>(
-      "SELECT email, code_hash, expires_at, requested_at, attempts FROM login_codes WHERE email = $1",
-      [email]
-    );
-    const row = result.rows[0];
-    return row
-      ? {
-          email: row.email,
-          codeHash: row.code_hash,
-          expiresAt: row.expires_at.getTime(),
-          requestedAt: row.requested_at.getTime(),
-          attempts: row.attempts,
-        }
-      : null;
+  async setPassword(userId: string, passwordHash: string): Promise<void> {
+    await this.db.query("UPDATE users SET password_hash = $2 WHERE id = $1", [
+      userId,
+      passwordHash,
+    ]);
   }
 
-  async deletePendingCode(email: string): Promise<void> {
-    await this.db.query("DELETE FROM login_codes WHERE email = $1", [email]);
+  async setStatus(userId: string, status: UserStatus): Promise<void> {
+    await this.db.query("UPDATE users SET status = $2 WHERE id = $1", [
+      userId,
+      status,
+    ]);
   }
 
-  async recordAttempt(email: string): Promise<number> {
-    const result = await this.db.query<{ attempts: number }>(
-      "UPDATE login_codes SET attempts = attempts + 1 WHERE email = $1 RETURNING attempts",
-      [email]
+  async countByRole(role: Role): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      "SELECT count(*) FROM users WHERE role = $1",
+      [role]
     );
-    return result.rows[0]?.attempts ?? 0;
+    return Number(result.rows[0]?.count ?? 0);
   }
 
   async createSession(session: SessionRecord): Promise<void> {
@@ -134,10 +118,14 @@ export class PostgresAuthStore implements AuthStore {
     await this.db.query("DELETE FROM sessions WHERE token_hash = $1", [tokenHash]);
   }
 
+  async deleteSessionsFor(userId: string): Promise<void> {
+    await this.db.query("DELETE FROM sessions WHERE user_id = $1", [userId]);
+  }
+
   async deleteExpired(now: number): Promise<void> {
-    const at = new Date(now);
-    await this.db.query("DELETE FROM login_codes WHERE expires_at <= $1", [at]);
-    await this.db.query("DELETE FROM sessions WHERE expires_at <= $1", [at]);
+    await this.db.query("DELETE FROM sessions WHERE expires_at <= $1", [
+      new Date(now),
+    ]);
   }
 }
 
@@ -147,6 +135,7 @@ function toUser(row: UserRow): User {
     email: row.email,
     displayName: row.display_name,
     role: row.role,
+    status: row.status,
     createdAt: row.created_at.getTime(),
   };
 }

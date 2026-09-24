@@ -1,37 +1,15 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 
 const FANS = Number(process.env.FANS ?? 2000);
 const TICKETS = Number(process.env.TICKETS ?? 500);
 const CONCURRENCY = Number(process.env.CONCURRENCY ?? 250);
 const PORT = Number(process.env.PORT ?? 3999);
 const BASE = `http://127.0.0.1:${PORT}`;
-const ORGANIZER = "drop-organizer@example.test";
-
-const codes = new Map();
-const waiting = new Map();
-
-function codeFor(email) {
-  const held = codes.get(email);
-  if (held) {
-    codes.delete(email);
-    return Promise.resolve(held);
-  }
-  return new Promise((resolve) => waiting.set(email, resolve));
-}
-
-function noteCode(email, code) {
-  const pending = waiting.get(email);
-  if (pending) {
-    waiting.delete(email);
-    pending(code);
-    return;
-  }
-  codes.set(email, code);
-}
+const ADMIN = "drop-admin@example.test";
+const PASSWORD = "bench-password";
 
 async function post(path, body, session) {
   const response = await fetch(`${BASE}${path}`, {
@@ -45,10 +23,7 @@ async function post(path, body, session) {
   return response;
 }
 
-async function signIn(email) {
-  await post("/auth/request", { email });
-  const code = await codeFor(email);
-  const response = await post("/auth/verify", { email, code });
+function sessionFrom(response, email) {
   const cookie = response.headers.getSetCookie?.() ?? [];
   const session = cookie
     .join(";")
@@ -59,6 +34,20 @@ async function signIn(email) {
     throw new Error(`could not sign in ${email}`);
   }
   return session.slice("session=".length);
+}
+
+async function register(email) {
+  const response = await post("/auth/register", {
+    email,
+    password: PASSWORD,
+    role: "customer",
+  });
+  return sessionFrom(response, email);
+}
+
+async function signIn(email) {
+  const response = await post("/auth/login", { email, password: PASSWORD });
+  return sessionFrom(response, email);
 }
 
 async function pool(items, limit, worker) {
@@ -89,6 +78,12 @@ function percentile(sorted, p) {
 }
 
 const dir = mkdtempSync(join(tmpdir(), "facevalue-drop-"));
+const adminFile = join(dir, "admin.json");
+writeFileSync(
+  adminFile,
+  JSON.stringify({ email: ADMIN, password: PASSWORD, name: "Bench admin" })
+);
+
 const engine = spawn(
   process.execPath,
   [join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs"), "src/index.ts"],
@@ -98,7 +93,9 @@ const engine = spawn(
       PORT: String(PORT),
       LOGGER: "false",
       DATABASE_URL: "",
-      ORGANIZER_EMAILS: ORGANIZER,
+      ADMIN_FILE: adminFile,
+      PASSWORD_COST: process.env.PASSWORD_COST ?? "1024",
+      UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE ?? "8",
       DOOR_KEY: "bench-door-key",
       AUTH_PEPPER: "bench-pepper",
       LOG_PATH: join(dir, "events.jsonl"),
@@ -107,12 +104,7 @@ const engine = spawn(
   }
 );
 
-createInterface({ input: engine.stdout }).on("line", (line) => {
-  const match = /sign-in code for (\S+): (\d{6})/.exec(line);
-  if (match) {
-    noteCode(match[1], match[2]);
-  }
-});
+engine.stdout.resume();
 
 async function waitForEngine() {
   for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -140,7 +132,7 @@ try {
   await waitForEngine();
   console.log(`engine up on ${BASE}`);
 
-  const organizer = await signIn(ORGANIZER);
+  const admin = await signIn(ADMIN);
   const closesAt = Date.now() + 86_400_000;
   const created = await post(
     "/events",
@@ -158,7 +150,7 @@ try {
         },
       ],
     },
-    organizer
+    admin
   );
   const { event } = await created.json();
   const symbol = `${event.id}:GA`;
@@ -166,15 +158,15 @@ try {
   await post(
     `/events/${event.id}/tickets`,
     { tierId: "GA", count: TICKETS },
-    organizer
+    admin
   );
 
-  console.log(`signing in ${FANS.toLocaleString()} fans`);
+  console.log(`registering ${FANS.toLocaleString()} fans`);
   const startedSignIn = performance.now();
   const sessions = await pool(
     Array.from({ length: FANS }, (_, i) => `fan${i}@example.test`),
     100,
-    (email) => signIn(email)
+    (email) => register(email)
   );
   console.log(
     `  took ${((performance.now() - startedSignIn) / 1000).toFixed(1)}s`
@@ -189,7 +181,7 @@ try {
       priceInCents: 1500,
       quantity: TICKETS,
     },
-    organizer
+    admin
   );
   console.log(`${TICKETS.toLocaleString()} tickets released\n`);
 

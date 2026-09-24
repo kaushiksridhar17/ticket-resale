@@ -77,5 +77,6 @@ export function publicUser(user: User) {
     email: user.email,
     displayName: user.displayName,
     role: user.role,
+    status: user.status,
   };
 }

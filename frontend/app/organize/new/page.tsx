@@ -32,10 +32,10 @@ export default function NewEventPage() {
     return <p className="text-sm text-muted">Loading</p>;
   }
 
-  if (!user || user.role !== "organizer") {
+  if (!user || user.role !== "admin") {
     return (
       <p className="text-sm text-muted">
-        Only organizers can put on an event.{" "}
+        Only the admin can put on an event.{" "}
         <Link
           href="/organize"
           className="text-ink underline decoration-accent underline-offset-4"

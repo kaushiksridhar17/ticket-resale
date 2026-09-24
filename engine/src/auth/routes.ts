@@ -1,80 +1,83 @@
 import type { FastifyInstance } from "fastify";
 import { AuthError, type AuthService } from "./service.js";
-import {
-  clearSessionCookie,
-  publicUser,
-  setSessionCookie,
-} from "./plugin.js";
+import { clearSessionCookie, publicUser, setSessionCookie } from "./plugin.js";
+import type { Role } from "./types.js";
 
-const requestSchema = {
+const registerSchema = {
   body: {
     type: "object",
-    required: ["email"],
+    required: ["email", "password", "role"],
     properties: {
       email: { type: "string", minLength: 3, maxLength: 200 },
+      password: { type: "string", minLength: 1, maxLength: 200 },
+      role: { type: "string", enum: ["seller", "customer"] },
+      displayName: { type: "string", maxLength: 80 },
     },
   },
 } as const;
 
-const verifySchema = {
+const loginSchema = {
   body: {
     type: "object",
-    required: ["email", "code"],
+    required: ["email", "password"],
     properties: {
       email: { type: "string", minLength: 3, maxLength: 200 },
-      code: { type: "string", minLength: 6, maxLength: 6 },
+      password: { type: "string", minLength: 1, maxLength: 200 },
+      role: { type: "string", enum: ["admin", "seller", "customer"] },
     },
   },
 } as const;
 
 const STATUS: Record<string, number> = {
   invalid_email: 400,
-  cooldown: 429,
-  too_many_attempts: 429,
-  no_code: 400,
-  expired: 400,
-  invalid_code: 400,
+  weak_password: 400,
+  invalid_role: 400,
+  email_taken: 409,
+  wrong_credentials: 401,
+  suspended: 403,
 };
 
-export function registerAuthRoutes(
-  app: FastifyInstance,
-  auth: AuthService
-): void {
-  app.post("/auth/request", { schema: requestSchema }, async (request, reply) => {
-    const { email } = request.body as { email: string };
+export function registerAuthRoutes(app: FastifyInstance, auth: AuthService): void {
+  app.post("/auth/register", { schema: registerSchema }, async (request, reply) => {
+    const body = request.body as {
+      email: string;
+      password: string;
+      role: Role;
+      displayName?: string;
+    };
 
     try {
-      await auth.requestCode(email);
-      return reply.code(202).send({ sent: true });
+      const { token, user } = await auth.register({
+        email: body.email,
+        password: body.password,
+        role: body.role,
+        displayName: body.displayName?.trim() || null,
+      });
+      setSessionCookie(reply, token, auth.sessionMaxAgeSeconds());
+      return reply.code(201).send({ user: publicUser(user) });
     } catch (error) {
-      if (error instanceof AuthError) {
-        return reply
-          .code(STATUS[error.code] ?? 400)
-          .send({ error: error.message, code: error.code });
-      }
-      throw error;
+      return fail(reply, error);
     }
   });
 
-  app.post("/auth/verify", { schema: verifySchema }, async (request, reply) => {
-    const { email, code } = request.body as { email: string; code: string };
+  app.post("/auth/login", { schema: loginSchema }, async (request, reply) => {
+    const body = request.body as {
+      email: string;
+      password: string;
+      role?: Role;
+    };
 
     try {
-      const { token, user } = await auth.verifyCode(email, code);
+      const { token, user } = await auth.logIn(body.email, body.password, body.role);
       setSessionCookie(reply, token, auth.sessionMaxAgeSeconds());
       return reply.send({ user: publicUser(user) });
     } catch (error) {
-      if (error instanceof AuthError) {
-        return reply
-          .code(STATUS[error.code] ?? 400)
-          .send({ error: error.message, code: error.code });
-      }
-      throw error;
+      return fail(reply, error);
     }
   });
 
   app.post("/auth/logout", async (request, reply) => {
-    await auth.logout(request.sessionToken);
+    await auth.logOut(request.sessionToken);
     clearSessionCookie(reply);
     return reply.code(204).send();
   });
@@ -85,4 +88,13 @@ export function registerAuthRoutes(
     }
     return { user: publicUser(request.user) };
   });
+}
+
+function fail(reply: Parameters<typeof clearSessionCookie>[0], error: unknown) {
+  if (error instanceof AuthError) {
+    return reply
+      .code(STATUS[error.code] ?? 400)
+      .send({ error: error.message, code: error.code });
+  }
+  throw error;
 }

@@ -15,15 +15,15 @@ const LINKS = [
   { href: "/tickets", label: "My tickets" },
 ];
 
-const ORGANIZER_LINK = { href: "/organize", label: "Organize" };
-const DOOR_LINK = { href: "/door", label: "The door" };
+const ADMIN_LINKS = [
+  { href: "/", label: "Events" },
+  { href: "/organize", label: "Admin" },
+  { href: "/door", label: "The door" },
+];
 
 function linksFor(role: User["role"] | null) {
-  if (role === "organizer") {
-    return [...LINKS, ORGANIZER_LINK, DOOR_LINK];
-  }
-  if (role === "staff") {
-    return [...LINKS, DOOR_LINK];
+  if (role === "admin") {
+    return ADMIN_LINKS;
   }
   return LINKS;
 }
