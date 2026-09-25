@@ -5,16 +5,114 @@ out in the order people asked for them.
 
 ![Events](docs/images/events.png)
 
-## The idea
+Every ticket goes through an order book with the price capped at face
+value, which turns the book into a queue. Sellers submit spare tickets with
+a photo for an admin to check. At the door, a rotating signed pass gets you
+in. It is a TypeScript monorepo: a Fastify engine with its own matching
+engine and event log, a Next.js front end, and Postgres as a rebuildable
+read model.
+
+- [Requirements](#requirements)
+- [Running it](#running-it)
+- [What you can do](#what-you-can-do)
+- [Why a cap turns a book into a queue](#why-a-cap-turns-a-book-into-a-queue)
+- [Fairness, demonstrated](#fairness-demonstrated)
+- [Accounts](#accounts)
+- [Selling a ticket you cannot use](#selling-a-ticket-you-cannot-use)
+- [The catalogue](#the-catalogue)
+- [The door](#the-door)
+- [How it holds together](#how-it-holds-together)
+- [Tests](#tests)
+- [Future work](#future-work)
+- [License](#license)
+
+## Requirements
+
+Docker is the shortest path and needs nothing else installed.
+
+- Docker Desktop, or Docker Engine with Compose v2
+
+To run it without Docker, or to run the tests:
+
+- Node 22.9 or newer. The engine's scripts use `--env-file-if-exists`,
+  which landed in 22.9. Node 24 is fine.
+- PostgreSQL 17 if you are not using the database container. Optional:
+  without it the app runs, but accounts do not survive a restart.
+
+## Running it
+
+```bash
+git clone https://github.com/kaushiksridhar17/ticket-resale.git
+cd ticket-resale
+cp .env.example .env
+docker compose up --build
+```
+
+Open http://localhost:3000. The catalogue of events is already there,
+mostly on sale, and you can sign in as the admin straight away.
+
+> **Development only.** The repository ships with demo admin credentials,
+> `admin@example.com` with the password `admin-password`, so that a fresh
+> clone runs without any setup. Change `ADMIN_EMAIL` and `ADMIN_PASSWORD`
+> in `.env` before the first run, or put your own details in
+> `engine/admin.json`. The admin is created once, on the first start with
+> no admin present, so changing them afterwards has no effect.
+
+Everybody other than the admin creates their own account through the site.
+
+### Without Docker
+
+Run the database in Docker and the two services yourself. Uncomment
+`DATABASE_URL` in `.env` first.
+
+```bash
+docker compose up -d db
+```
+
+```bash
+cd engine && npm install && npm run dev
+```
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+The engine reads the same `.env`. Events survive in an append-only log on
+disk either way, but accounts only survive a restart when a database is
+configured, and the engine says so on startup.
+
+### Useful commands
+
+```bash
+docker compose down       # stop, keep the data
+docker compose down -v    # stop and wipe the database and the event log
+```
+
+Wipe both together or not at all. They are two halves of one state, and the
+engine warns you on startup if they disagree.
+
+## What you can do
+
+Sign in as the admin and you get the events, the approval queue and the
+door scanner. Create your own account and you get the other side of it.
+
+- **As a customer**, claim a ticket at face value, or join the queue when
+  there are none spare. Three tiers in the catalogue ship sold out so you
+  can see queueing without setting it up.
+- **As a seller**, submit a spare ticket with a photo and wait for it to be
+  checked. An account can be both at once.
+- **As the admin**, put on events, release tickets, approve or turn down
+  what sellers submit, and scan people in at the door.
+
+## Why a cap turns a book into a queue
 
 Resale is unfair in two ways. Touts buy in bulk and sell at a markup, and
 when a gig sells out the returns go to whoever happens to be refreshing at
 the right moment.
 
-This fixes both by running every ticket through an order book with the
-price capped at face value. A cap turns the book into a queue: if nobody
-can outbid anybody, the only thing left to sort on is who asked first.
-That is price-time priority with the price dimension deliberately removed.
+Capping the price at face value fixes both. If nobody can outbid anybody,
+the only thing left to sort on is who asked first. That is price-time
+priority with the price dimension deliberately removed.
 
 Nothing is paid on the site. You claim a ticket and pay the venue on the
 night, so there is no float to hold, no refunds to process, and nothing for
@@ -48,10 +146,9 @@ numbers in [`engine/bench/results.md`](engine/bench/results.md).
 
 ## Accounts
 
-There is one admin, who puts on events, approves what sellers submit and
-works the door. Everybody else is a member holding two switches, buying and
-selling. The question is asked once, at sign-up, and either switch can be
-flipped later without making a second account.
+There is one admin. Everybody else is a member holding two switches, buying
+and selling. The question is asked once, at sign-up, and either switch can
+be flipped later without making a second account.
 
 ![Creating an account](docs/images/register.png)
 
@@ -70,12 +167,7 @@ machine; a small script applies it before the first paint.
 
 ![Settings](docs/images/settings-dark.png)
 
-The admin is not created through the site, which is why the site never
-offers it as a choice. It comes from `engine/admin.json`, or from
-`ADMIN_EMAIL` and `ADMIN_PASSWORD`, and only when no admin exists yet. Out
-of the box that is `admin@example.com` with the password `admin-password`.
-
-## Putting up a ticket you cannot use
+## Selling a ticket you cannot use
 
 A seller does not invent an event and does not name a price. They pick one
 from the catalogue, say how many they have, and attach a photo.
@@ -145,32 +237,6 @@ sell a ticket and still walk in on it.
 
 ![Your tickets](docs/images/tickets.png)
 
-## Running it
-
-```bash
-git clone https://github.com/kaushiksridhar17/ticket-resale.git
-cd ticket-resale
-cp .env.example .env
-docker compose up --build
-```
-
-`.env` ships with working admin details, so it runs as it is. Open
-http://localhost:3000 and sign in with them; everybody else creates their
-own account. The catalogue is already there, mostly on sale.
-
-To run the engine and frontend yourself with only the database in Docker,
-uncomment `DATABASE_URL` in `.env`, then:
-
-```bash
-docker compose up -d db
-cd engine && npm install && npm run dev
-cd frontend && npm install && npm run dev
-```
-
-The engine reads the same `.env`. Events survive in the log on disk either
-way, but accounts only survive a restart when a database is configured, and
-it says so on startup.
-
 ## How it holds together
 
 ```
@@ -190,7 +256,7 @@ log at any time, which one of the integration tests does. Nothing in the
 claim path waits on the database: orders match in memory and return, rows
 are written in batches behind them.
 
-## Decisions worth knowing about
+### Decisions worth knowing about
 
 Money is counted in integer cents. Order arrival is decided by a sequence
 number rather than a timestamp, because two requests can share a
@@ -204,6 +270,31 @@ Approving a submitted ticket counts it as issued for that event, which
 nudges the printed figure above what the venue itself printed. That is the
 honest way to record a real ticket entering the system, and worth knowing
 before reading the numbers on an event.
+
+### Layout
+
+```
+engine/
+  src/
+    matchingEngine.ts   price-time priority, one book per tier
+    exchangeState.ts    rules, log, recovery
+    events/             events, tiers, and the seeded catalogue
+    tickets/            serials and chain of custody
+    listings/           seller submissions, photos, approvals
+    door/               pass signing and scanning
+    auth/               passwords, sessions, accounts, settings
+    db/                 batched writer, migrations, Postgres schema
+  bench/                engine throughput and the drop benchmark
+frontend/
+  app/
+    page.tsx            what is on, with sorting and filtering
+    events/[eventId]/   claim, queue, or pass one on
+    tickets/            what you hold, and the door pass for each
+    sell/               submit a ticket and watch for the decision
+    admin/              events, the approval queue, reports
+    door/               the scanner
+    settings/           buying and selling, appearance, password
+```
 
 ## Tests
 
@@ -233,6 +324,9 @@ cd frontend && npm test
 
 ## Future work
 
+- Email verification at sign-up. Nothing currently stops one person making
+  several accounts to take more than the per-person limit, which is the
+  most obvious hole in a platform built on one-ticket-per-person fairness.
 - Settlement between people. Nothing is paid on the site, so a seller
   reimbursing themselves for a ticket bought elsewhere is not modelled.
   Adding it brings refunds, disputes and reversals with it.
@@ -241,32 +335,11 @@ cd frontend && npm test
 - Telling a seller their listing was decided, rather than making them look.
 - Deployment. It runs locally and in Docker; there is no hosted instance.
 
-## Layout
-
-```
-engine/
-  src/
-    matchingEngine.ts   price-time priority, one book per tier
-    exchangeState.ts    rules, log, recovery
-    events/             events, tiers, and the seeded catalogue
-    tickets/            serials and chain of custody
-    listings/           seller submissions, photos, approvals
-    door/               pass signing and scanning
-    auth/               passwords, sessions, accounts, settings
-    db/                 batched writer, migrations, Postgres schema
-  bench/                engine throughput and the drop benchmark
-frontend/
-  app/
-    page.tsx            what is on, with sorting and filtering
-    events/[eventId]/   claim, queue, or pass one on
-    tickets/            what you hold, and the door pass for each
-    sell/               submit a ticket and watch for the decision
-    admin/              events, the approval queue, reports
-    door/               the scanner
-    settings/           buying and selling, appearance, password
-```
-
 ## Built with
 
 TypeScript, Node, Fastify, WebSockets, PostgreSQL, Next.js, React,
 Tailwind, Vitest, fast-check, Docker.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Copyright (c) 2026 Kaushik Sridhar.
